@@ -7,8 +7,8 @@ const CATEGORIES = [
 async function listProducts(req, res) {
   const includeInactive = req.query.includeInactive === 'true';
   const query = includeInactive
-    ? 'SELECT * FROM products ORDER BY category, name'
-    : 'SELECT * FROM products WHERE active = TRUE ORDER BY category, name';
+    ? 'SELECT * FROM products ORDER BY ordem ASC NULLS LAST'
+    : 'SELECT * FROM products WHERE active = TRUE ORDER BY ordem ASC NULLS LAST';
   const result = await pool.query(query);
   res.json(result.rows);
 }
