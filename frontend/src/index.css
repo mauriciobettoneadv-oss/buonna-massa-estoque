@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-red: #5C0F0F;
+  --color-brand-cream: #F5F0E8;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-brand-cream);
+}

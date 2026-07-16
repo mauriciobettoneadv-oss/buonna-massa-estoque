@@ -1,0 +1,128 @@
+const Anthropic = require('@anthropic-ai/sdk');
+const pool = require('../db/pool');
+const fs = require('fs');
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// Simple fuzzy match: returns score 0-1 between two strings
+function similarity(a, b) {
+  a = a.toLowerCase().trim();
+  b = b.toLowerCase().trim();
+  if (a === b) return 1;
+  if (b.includes(a) || a.includes(b)) return 0.8;
+  // Count common words
+  const wordsA = a.split(/\s+/);
+  const wordsB = b.split(/\s+/);
+  const common = wordsA.filter((w) => wordsB.some((wb) => wb.includes(w) || w.includes(wb)));
+  return common.length / Math.max(wordsA.length, wordsB.length);
+}
+
+async function extractPrices(req, res) {
+  if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada no servidor.' });
+  }
+
+  const { id: quotationId, supplierId } = req.params;
+
+  // Load products for this quotation
+  const productsResult = await pool.query(
+    `SELECT DISTINCT p.id AS product_id, p.name, p.purchase_unit
+     FROM quotation_counts qc
+     JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
+     JOIN products p ON p.id = sci.product_id
+     WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0`,
+    [quotationId]
+  );
+  const products = productsResult.rows;
+
+  // Read image and convert to base64
+  const imageBuffer = fs.readFileSync(req.file.path);
+  const base64Image = imageBuffer.toString('base64');
+  const mediaType = req.file.mimetype;
+
+  // Call Claude vision
+  const productList = products.map((p) => `- ${p.name} (${p.purchase_unit})`).join('\n');
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: mediaType, data: base64Image },
+          },
+          {
+            type: 'text',
+            text: `Esta é uma lista de preços de um fornecedor. Extraia todos os produtos e seus preços unitários visíveis na imagem.
+
+Produtos que estou procurando (mas pode haver outros):
+${productList}
+
+Responda SOMENTE com um JSON válido no formato:
+[{"produto": "nome exato como aparece na imagem", "preco": 12.50}, ...]
+
+Regras:
+- Use o preço unitário (por unidade/kg/caixa). Se houver preço por embalagem maior, divida.
+- Números decimais com ponto (não vírgula).
+- Se não encontrar preço para um produto, não inclua na lista.
+- Retorne apenas o JSON, sem texto antes ou depois.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  // Clean up temp file
+  fs.unlinkSync(req.file.path);
+
+  // Parse Claude's response
+  let extracted = [];
+  try {
+    const text = message.content[0].text.trim();
+    const jsonStr = text.match(/\[[\s\S]*\]/)?.[0];
+    extracted = JSON.parse(jsonStr);
+  } catch {
+    return res.status(422).json({ error: 'Não foi possível extrair preços da imagem. Tente uma foto mais clara.' });
+  }
+
+  // Match extracted items to products
+  const matches = [];
+  for (const item of extracted) {
+    let bestMatch = null;
+    let bestScore = 0;
+    for (const product of products) {
+      const score = similarity(item.produto, product.name);
+      if (score > bestScore && score >= 0.35) {
+        bestScore = score;
+        bestMatch = product;
+      }
+    }
+    if (bestMatch) {
+      matches.push({
+        product_id: bestMatch.product_id,
+        product_name: bestMatch.name,
+        extracted_name: item.produto,
+        unit_price: Number(item.preco),
+        confidence: Math.round(bestScore * 100),
+      });
+    }
+  }
+
+  // Auto-save matched prices to DB
+  for (const m of matches) {
+    await pool.query(
+      `INSERT INTO quotation_prices (supplier_id, product_id, unit_price)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (supplier_id, product_id) DO UPDATE SET unit_price = $3`,
+      [supplierId, m.product_id, m.unit_price]
+    );
+  }
+
+  res.json({ matches, total_extracted: extracted.length, total_matched: matches.length });
+}
+
+module.exports = { extractPrices };
