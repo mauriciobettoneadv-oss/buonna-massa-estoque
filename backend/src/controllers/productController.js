@@ -1,7 +1,7 @@
 const pool = require('../db/pool');
 
 const CATEGORIES = [
-  'Laticínios', 'Embutidos', 'Bebidas', 'Limpeza', 'Descartáveis', 'Massas', 'Molhos', 'Outros',
+  'Laticínios', 'Embutidos', 'Bebidas', 'Limpeza', 'Descartáveis', 'Massas', 'Molhos', 'Escritório', 'Outros',
 ];
 
 async function listProducts(req, res) {

@@ -4,87 +4,99 @@ const pool = require('../db/pool');
 
 // [ordem, nome, categoria, unidade, min_stock]
 const products = [
-  [1,  'Muçarela Frizzo Planato',                   'Laticínios',   'Peças',    4],
-  [2,  'Provolone Tania ou Scala',                  'Laticínios',   'Peças',    1],
-  [3,  'Parmesão Scala',                            'Laticínios',   'Peças',    1],
-  [4,  'Gorgonzola Quata',                          'Laticínios',   'Peças',    1],
-  [5,  'Catupiry',                                  'Laticínios',   'Bisnagas', 3],
-  [6,  'Cheddar Scala',                             'Laticínios',   'Bisnagas', 2],
-  [7,  'Cream Cheese Philadelphia',                 'Laticínios',   'Bisnagas', 1],
-  [8,  'Atum Marsul',                               'Outros',       'Latas',    1],
-  [9,  'Milho Quero',                               'Outros',       'Latas',    1],
-  [10, 'Ervilha Quero',                             'Outros',       'Latas',    1],
-  [11, 'Azeitona Portobello',                       'Outros',       'Baldes',   5],
-  [12, 'Champignon Portobello',                     'Outros',       'Baldes',   1],
-  [13, 'Chocolate ao Leite Harold',                 'Outros',       'Bisnagas', 1],
-  [14, "M&M's",                                     'Outros',       'Pacotes',  1],
-  [15, 'Nutella',                                   'Outros',       'Baldes',   2],
-  [16, 'Doce de Leite Frimesa',                     'Outros',       'Baldes',   1],
-  [17, 'Goiabada Raston',                           'Outros',       'Bisnagas', 1],
-  [18, 'Manteiga',                                  'Laticínios',   'Caixas',   1],
-  [19, 'Orégano',                                   'Outros',       'Pacotes',  1],
-  [20, 'Pepperoni Ceratti',                         'Embutidos',    'Pacotes',  2],
-  [21, 'Pimenta Biquinho',                          'Molhos',       'Potes',    1],
-  [22, 'Camarão',                                   'Embutidos',    'Pacotes',  1],
-  [23, 'Carne Seca Alfama',                         'Embutidos',    'Pacotes',  3],
-  [24, 'Fermento Biológico em Pó Fleischmann',      'Massas',       'Pacotes',  1],
-  [25, 'Açúcar',                                    'Outros',       'Pacotes',  1],
-  [26, 'Açúcar Demerara',                           'Outros',       'Pacotes',  1],
-  [27, 'Sal',                                       'Outros',       'Pacotes',  1],
-  [28, 'Fubá',                                      'Massas',       'Pacotes',  1],
-  [29, 'Farinha de Trigo Anaconda',                 'Massas',       'Fardos',   5],
-  [30, 'Azeite 5 Litros',                           'Molhos',       'Galões',   1],
-  [31, 'Escarola',                                  'Outros',       'Pacotes',  1],
-  [32, 'Brócolis Sadia',                            'Outros',       'Pacotes',  1],
-  [33, 'Peito de Peru Sadia',                       'Embutidos',    'Peças',    1],
-  [34, 'Bacon Sadia',                               'Embutidos',    'Caixas',   7],
-  [35, 'Apresuntado Aurora',                        'Embutidos',    'Peças',    4],
-  [36, 'Calabresa Reta Nobre',                      'Embutidos',    'Peças',    2],
-  [37, 'Lombo Canadense Nobre',                     'Embutidos',    'Peças',    1],
-  [38, 'Leite Condensado',                          'Laticínios',   'Unidades', 1],
-  [39, 'Doritos',                                   'Outros',       'Pacotes',  1],
-  [40, 'Mistura Para Massa sem Glúten Vitalin',     'Massas',       'Pacotes',  1],
-  [41, 'Farinha de Trigo Integral',                 'Massas',       'Pacotes',  1],
-  [42, 'Farinha de Coco',                           'Massas',       'Pacotes',  1],
-  [43, 'Barra de Chocolate 1KG para Mousse',        'Outros',       'Pacotes',  1],
-  [44, 'Barra de Chocolate Branco 1KG para Ganache','Outros',       'Pacotes',  1],
-  [45, 'Creme de Leite',                            'Laticínios',   'Pacotes',  1],
-  [46, 'Tomate Seco',                               'Molhos',       'Baldes',   1],
-  [47, 'Sassami C Vale',                            'Embutidos',    'Pacotes',  2],
-  [48, 'Palmito Atração',                           'Outros',       'Vidros',   1],
-  [49, 'Azeitona Preta Fatiada sem Caroço',         'Outros',       'Baldes',   1],
-  [50, 'Batata para Fritar',                        'Outros',       'Pacotes',  1],
-  [51, 'Alho Frito',                                'Molhos',       'Pacotes',  1],
-  [52, 'Tilápia',                                   'Embutidos',    'Pacotes',  1],
-  [53, 'Shimeji',                                   'Outros',       'Pacotes',  1],
-  [54, 'Shitake',                                   'Outros',       'Pacotes',  1],
-  [55, 'Álcool Gel',                                'Limpeza',      'Potes',    1],
-  [56, 'Papel Interfolhas',                         'Limpeza',      'Pacotes',  1],
-  [57, 'Papel Higiênico',                           'Limpeza',      'Pacotes',  1],
-  [58, 'Esponja',                                   'Limpeza',      'Unidades', 2],
-  [59, 'Saco de Lixo',                              'Limpeza',      'Pacotes',  1],
-  [60, 'P35 - Grande',                              'Descartáveis', 'Fardos',   500],
-  [61, 'P25 - Pequena',                             'Descartáveis', 'Fardos',   107],
-  [62, 'Lacre',                                     'Descartáveis', 'Unidades', 1],
-  [63, 'Sacos Fracionamento',                       'Descartáveis', 'Fardos',   6],
-  [64, 'Bobinas Impressora',                        'Descartáveis', 'Unidades', 1],
-  [65, 'Coca Cola Lata',                            'Bebidas',      'Latas',    1],
-  [66, 'Coca Cola Lata Zero',                       'Bebidas',      'Latas',    1],
-  [67, 'Coca Cola 2 Litros',                        'Bebidas',      'Fardos',   7],
-  [68, 'Coca Cola 2 Litros Zero',                   'Bebidas',      'Fardos',   5],
-  [69, 'Água sem Gás',                              'Bebidas',      'Fardos',   1],
-  [70, 'Guaraná Antártica 1 Litro',                 'Bebidas',      'Fardos',   4],
-  [71, 'Pepsi 1 Litro',                             'Bebidas',      'Fardos',   2],
-  [72, 'Guaraná Lata',                              'Bebidas',      'Latas',    1],
-  [73, 'Brahma Lata',                               'Bebidas',      'Latas',    1],
-  [74, 'Heineken Long Neck',                        'Bebidas',      'Garrafas', 1],
-  [75, 'Abacaxi',                                   'Outros',       'Unidades', 1],
-  [76, 'Abacaxi com Hortelã',                       'Outros',       'Unidades', 1],
-  [77, 'Maracujá',                                  'Outros',       'Unidades', 1],
-  [78, 'Morango',                                   'Outros',       'Unidades', 1],
-  [79, 'Pêssego',                                   'Outros',       'Unidades', 1],
-  [80, 'Acerola',                                   'Outros',       'Unidades', 1],
-  [81, 'Embalagem Suco',                            'Outros',       'Unidades', 1],
+  [1,  'Muçarela Frizzo Planato',                'Laticínios',   'Peças',              4],
+  [2,  'Muçarela de Bufala',                     'Laticínios',   'Baldes',             1],
+  [3,  'Provolone Tania',                        'Laticínios',   'Peças',              1],
+  [4,  'Parmesão Scala',                         'Laticínios',   'Peças',              1],
+  [5,  'Gorgonzola Quata',                       'Laticínios',   'Peças',              1],
+  [6,  'Catupiry',                               'Laticínios',   'Bisnagas',           3],
+  [7,  'Cheddar Scala',                          'Laticínios',   'Bisnagas',           2],
+  [8,  'Pistache Vabene',                        'Laticínios',   'Bisnagas',           1],
+  [9,  'Cream Cheese Philadelphia',              'Laticínios',   'Bisnagas',           1],
+  [10, 'Atum Marsul',                            'Outros',       'Latas',              1],
+  [11, 'Milho Quero',                            'Outros',       'Latas',              1],
+  [12, 'Ervilha Quero',                          'Outros',       'Latas',              1],
+  [13, 'Azeitona Verde sem Caroço',              'Outros',       'Baldes',             5],
+  [14, 'Champignon',                             'Outros',       'Baldes',             1],
+  [15, 'Chocolate ao Leite Harald',              'Outros',       'Bisnagas',           1],
+  [16, 'Chocolate Branco Harald',                'Outros',       'Bisnagas',           1],
+  [17, "M&M's 1KG",                             'Outros',       'Pacotes',            1],
+  [18, 'Nutella 3KG',                            'Outros',       'Baldes',             2],
+  [19, 'Doce de Leite Frimesa',                  'Outros',       'Baldes',             1],
+  [20, 'Manteiga 5KG',                           'Laticínios',   'Caixas',             1],
+  [21, 'Orégano',                                'Outros',       'Pacotes',            1],
+  [22, 'Pepperoni Ceratti',                      'Embutidos',    'Pacotes',            2],
+  [23, 'Pimenta Biquinho',                       'Molhos',       'Potes',              1],
+  [24, 'Carne Seca Alfama',                      'Embutidos',    'Pacotes',            3],
+  [25, 'Fermento biológico em pó Fleischmann',   'Massas',       'Pacotes',            1],
+  [26, 'Açúcar',                                 'Outros',       'Pacotes',            1],
+  [27, 'Açúcar Demerara',                        'Outros',       'Pacotes',            1],
+  [28, 'Sal',                                    'Outros',       'Pacotes',            1],
+  [29, 'Fubá',                                   'Massas',       'Pacotes',            1],
+  [30, 'Farinha de Trigo Anaconda',              'Massas',       'Fardos',             5],
+  [31, 'Azeite 5 Litros',                        'Molhos',       'Galões',             1],
+  [32, 'Escarola',                               'Outros',       'Pacotes',            1],
+  [33, 'Brócolis Picado',                        'Outros',       'Pacotes',            1],
+  [34, 'Peito de Peru Sadia',                    'Embutidos',    'Peças',              1],
+  [35, 'Bacon Sadia',                            'Embutidos',    'Caixas',             7],
+  [36, 'Apresuntado Aurora',                     'Embutidos',    'Peças',              4],
+  [37, 'Calabresa Reta Nobre',                   'Embutidos',    'Peças',              2],
+  [38, 'Lombo Canadense Nobre',                  'Embutidos',    'Peças',              1],
+  [39, 'Leite Condensado 395G',                  'Laticínios',   'Unidades',           1],
+  [40, 'Doritos',                                'Outros',       'Pacotes',            1],
+  [41, 'Moeda de Chocolate ao Leite Genuine',    'Outros',       'Pacotes',            1],
+  [42, 'Moeda de Chocolate Branco Genuine',      'Outros',       'Pacotes',            1],
+  [43, 'Batata Palha Yoki',                      'Outros',       'Pacotes',            1],
+  [44, 'Catchup Cepera',                         'Molhos',       'Baldes',             1],
+  [45, 'Mostarda Cepera',                        'Molhos',       'Baldes',             1],
+  [46, 'Creme de Leite',                         'Laticínios',   'Pacotes',            1],
+  [47, 'Tomate Seco Porto Belo',                 'Molhos',       'Baldes',             1],
+  [48, 'Filezinho de Sassami',                   'Embutidos',    'Pacotes',            2],
+  [49, 'Filé Mignon',                            'Embutidos',    'Unidades',           1],
+  [50, 'Costela',                                'Embutidos',    'Unidades',           1],
+  [51, 'Palmito Atração',                        'Outros',       'Vidros',             1],
+  [52, 'Alho Frito',                             'Molhos',       'Pacotes',            1],
+  [53, 'Shimeji',                                'Outros',       'Pacotes',            1],
+  [54, 'Shitake',                                'Outros',       'Pacotes',            1],
+  [55, 'Papel Interfolhas',                      'Limpeza',      'Pacotes',            1],
+  [56, 'Papel Higiênico',                        'Limpeza',      'Pacotes',            1],
+  [57, 'Esponja',                                'Limpeza',      'Unidades',           2],
+  [58, 'Saco de Lixo 60 Litros',                 'Limpeza',      'Pacotes',            1],
+  [59, 'Desengraxante',                          'Limpeza',      'Galões',             1],
+  [60, 'Detergente',                             'Limpeza',      'Galões',             1],
+  [61, 'Detergente + Cloro',                     'Limpeza',      'Galões',             1],
+  [62, 'P35 - Grande',                           'Descartáveis', 'Fardos',             500],
+  [63, 'P25 - Pequena',                          'Descartáveis', 'Fardos',             107],
+  [64, 'P35 - Grande Gulosos',                   'Descartáveis', 'Fardos',             1],
+  [65, 'P25 - Pequena Gulosos',                  'Descartáveis', 'Fardos',             1],
+  [66, 'Sacolas',                                'Descartáveis', 'Unidades',           1],
+  [67, 'Lacre',                                  'Descartáveis', 'Unidades',           1],
+  [68, 'Sacos fracionamento 20 x 30',            'Descartáveis', 'Fardos',             6],
+  [69, 'Saco Vácuo 20 x 15',                     'Descartáveis', 'Unidades',           1],
+  [70, 'Saco Vácuo 20 x 25',                     'Descartáveis', 'Unidades',           1],
+  [71, 'Saco Catupiry',                          'Descartáveis', 'Unidades',           1],
+  [72, 'Toucas',                                 'Descartáveis', 'Unidades',           1],
+  [73, 'Bobinas Impressora',                     'Descartáveis', 'Unidades',           1],
+  [74, 'Bic',                                    'Escritório',   'Unidades',           1],
+  [75, 'Grifa Texto Verde Limão',                'Escritório',   'Unidades',           1],
+  [76, 'Grifa Texto Verde',                      'Escritório',   'Unidades',           1],
+  [77, 'Grifa Texto Rosa',                       'Escritório',   'Unidades',           1],
+  [78, 'Grifa Texto Laranja',                    'Escritório',   'Unidades',           1],
+  [79, 'Clipes',                                 'Escritório',   'Unidades',           1],
+  [80, 'Grampos',                                'Escritório',   'Unidades',           1],
+  [81, 'Durex',                                  'Escritório',   'Unidades',           1],
+  [82, 'Cupom Ifood',                            'Outros',       'Unidades',           1],
+  [83, 'Bombom Sonho de Valsa Ifood',            'Outros',       'Unidades',           1],
+  [84, 'Coca Cola 350 Ml',                       'Bebidas',      'Latas',              1],
+  [85, 'Coca Cola Zero 350 Ml',                  'Bebidas',      'Latas',              1],
+  [86, 'Coca Cola 2 Litros',                     'Bebidas',      'Fardos',             7],
+  [87, 'Coca Cola 2 Litros Zero',                'Bebidas',      'Fardos',             5],
+  [88, 'Água sem gás',                           'Bebidas',      'Garrafas',           1],
+  [89, 'Guaraná Antartica 1 Litro',              'Bebidas',      'Fardos',             4],
+  [90, 'Pepsi 1 Litro',                          'Bebidas',      'Fardos',             2],
+  [91, 'Guaraná 350 Ml',                         'Bebidas',      'Latas',              1],
+  [92, 'Brahma 350 Ml',                          'Bebidas',      'Latas',              1],
+  [93, 'Heineken Long Neck',                     'Bebidas',      'Garrafas',           1],
 ];
 
 async function seed() {
@@ -109,13 +121,13 @@ async function seed() {
     ['Proprietário', 'proprietario@buonna.com', propHash, 'proprietario']
   );
 
-  // Apaga todos os produtos para garantir ordem limpa
+  // Apaga tudo para garantir lista limpa
   await pool.query(`DELETE FROM stock_count_items`);
   await pool.query(`DELETE FROM quotation_prices`);
   await pool.query(`DELETE FROM supplier_product_prices`);
   await pool.query(`DELETE FROM products`);
 
-  // Insere produtos na ordem correta
+  // Insere produtos na ordem exata da planilha
   for (const [ordem, name, category, unit, min_stock] of products) {
     await pool.query(
       `INSERT INTO products (name, category, unit_measure, purchase_unit, min_stock, ordem)
@@ -124,17 +136,13 @@ async function seed() {
     );
   }
 
-  // Desativa qualquer produto fora da lista (não deve haver, mas por segurança)
-  const names = products.map(p => p[1]);
-  await pool.query(`UPDATE products SET active = FALSE WHERE name != ALL($1::text[])`, [names]);
-
   console.log('Seed concluído.');
-  console.log(`Produtos: ${products.length}`);
+  console.log(`Produtos inseridos: ${products.length}`);
 
   // Verificação final
-  const result = await pool.query(`SELECT name, ordem FROM products ORDER BY ordem ASC`);
+  const result = await pool.query(`SELECT name, unit_measure, ordem FROM products ORDER BY ordem ASC`);
   console.log('\n--- ORDEM FINAL NO BANCO ---');
-  result.rows.forEach(r => console.log(`${String(r.ordem).padStart(2, ' ')}. ${r.name}`));
+  result.rows.forEach(r => console.log(`${String(r.ordem).padStart(2, ' ')}. ${r.name} (${r.unit_measure})`));
 
   await pool.end();
 }
