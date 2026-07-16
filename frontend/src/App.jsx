@@ -19,13 +19,10 @@ function App() {
           <Route path="/contagem" element={<Counting />} />
         </Route>
 
-        <Route element={<ProtectedRoute roles={['proprietario']} />}>
+        <Route element={<ProtectedRoute roles={['dono', 'gerente', 'proprietario']} />}>
           <Route path="/produtos" element={<Products />} />
           <Route path="/relatorio" element={<Report />} />
           <Route path="/cotacao" element={<Quotation />} />
-        </Route>
-
-        <Route element={<ProtectedRoute roles={['dono', 'gerente', 'proprietario']} />}>
           <Route path="/usuarios" element={<Users />} />
           <Route path="/fornecedores" element={<Suppliers />} />
         </Route>
