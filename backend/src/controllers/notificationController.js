@@ -34,14 +34,17 @@ async function updateNotificationSettings(req, res) {
     return res.json(result.rows[0]);
   }
 
+  const current = existing.rows[0];
+  const finalKey = evolution_key || null;
+
   const result = await pool.query(
     `UPDATE notification_settings SET
        schedule_days=$1, main_time=$2, reminder_time=$3, main_message=$4, reminder_message=$5,
-       evolution_url=$6, evolution_key=$7, evolution_instance=$8, updated_at=NOW()
+       evolution_url=$6, evolution_key=COALESCE($7, evolution_key), evolution_instance=$8, updated_at=NOW()
      WHERE id=$9 RETURNING *`,
     [schedule_days, main_time, reminder_time, main_message, reminder_message,
-     evolution_url || null, evolution_key || null, evolution_instance || null,
-     existing.rows[0].id]
+     evolution_url || null, finalKey, evolution_instance || null,
+     current.id]
   );
   res.json(result.rows[0]);
 }
