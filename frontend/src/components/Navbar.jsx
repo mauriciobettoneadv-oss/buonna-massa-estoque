@@ -18,18 +18,17 @@ export default function Navbar() {
       <div className="flex items-center gap-6">
         <span className="font-bold">Buonna Massa</span>
         <Link to="/contagem" className="text-sm hover:underline">Contagem</Link>
-        {isOwner && (
+        {isManager && (
           <>
             <Link to="/produtos" className="text-sm hover:underline">Produtos</Link>
             <Link to="/relatorio" className="text-sm hover:underline">Relatório</Link>
             <Link to="/cotacao" className="text-sm hover:underline">Cotação</Link>
-          </>
-        )}
-        {isManager && (
-          <>
             <Link to="/fornecedores" className="text-sm hover:underline">Fornecedores</Link>
             <Link to="/usuarios" className="text-sm hover:underline">Usuários</Link>
           </>
+        )}
+        {isOwner && (
+          <Link to="/notificacoes" className="text-sm hover:underline">🔔 Notificações</Link>
         )}
       </div>
       <div className="flex items-center gap-3 text-sm">

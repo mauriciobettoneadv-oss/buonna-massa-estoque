@@ -8,6 +8,7 @@ import Report from './pages/Report';
 import Quotation from './pages/Quotation';
 import Users from './pages/Users';
 import Suppliers from './pages/Suppliers';
+import NotificationSettings from './pages/NotificationSettings';
 
 function App() {
   return (
@@ -25,6 +26,10 @@ function App() {
           <Route path="/cotacao" element={<Quotation />} />
           <Route path="/usuarios" element={<Users />} />
           <Route path="/fornecedores" element={<Suppliers />} />
+        </Route>
+
+        <Route element={<ProtectedRoute roles={['dono', 'proprietario']} />}>
+          <Route path="/notificacoes" element={<NotificationSettings />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/contagem" replace />} />

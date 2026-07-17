@@ -16,7 +16,7 @@ const ROLE_BADGE = {
   contador: 'bg-blue-100 text-blue-700',
 };
 
-const EMPTY_FORM = { name: '', email: '', password: '', role: 'contador', unit_id: '' };
+const EMPTY_FORM = { name: '', email: '', password: '', role: 'contador', unit_id: '', whatsapp: '' };
 
 export default function Users() {
   const { token, user: currentUser } = useAuth();
@@ -55,7 +55,7 @@ export default function Users() {
 
   function openEdit(u) {
     setEditId(u.id);
-    setForm({ name: u.name, email: u.email, password: '', role: u.role, unit_id: u.unit_id ?? '' });
+    setForm({ name: u.name, email: u.email, password: '', role: u.role, unit_id: u.unit_id ?? '', whatsapp: u.whatsapp ?? '' });
     setError('');
     setShowForm(true);
   }
@@ -77,6 +77,7 @@ export default function Users() {
         email: form.email,
         role: form.role,
         unit_id: form.unit_id !== '' ? Number(form.unit_id) : null,
+        whatsapp: form.whatsapp || null,
       };
       if (form.password) body.password = form.password;
 
@@ -183,6 +184,18 @@ export default function Users() {
                 {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                WhatsApp <span className="text-gray-400 font-normal">(DDD + número, ex: 19999999999)</span>
+              </label>
+              <input
+                type="tel"
+                placeholder="19999999999"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={form.whatsapp}
+                onChange={e => setForm({ ...form, whatsapp: e.target.value.replace(/\D/g, '') })}
+              />
+            </div>
           </div>
           <div className="flex gap-3 mt-4">
             <button type="submit" disabled={saving}
@@ -203,6 +216,7 @@ export default function Users() {
             <tr>
               <th className="px-4 py-3 text-left">Nome</th>
               <th className="px-4 py-3 text-left">E-mail</th>
+              <th className="px-4 py-3 text-left">WhatsApp</th>
               <th className="px-4 py-3 text-left">Perfil</th>
               <th className="px-4 py-3 text-left">Unidade</th>
               <th className="px-4 py-3 text-left">Status</th>
@@ -214,6 +228,7 @@ export default function Users() {
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-800">{u.name}</td>
                 <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs">{u.whatsapp || <span className="text-gray-300">—</span>}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_BADGE[u.role] || 'bg-gray-100 text-gray-600'}`}>
                     {ROLE_LABELS[u.role] || u.role}
