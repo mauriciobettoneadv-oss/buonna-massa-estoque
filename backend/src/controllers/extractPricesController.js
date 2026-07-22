@@ -38,7 +38,7 @@ async function extractPrices(req, res) {
   const productList = products.map((p) => `- ${p.name} (${p.purchase_unit})`).join('\n');
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   const prompt = `Esta é uma lista de preços de um fornecedor. Extraia todos os produtos e seus preços unitários visíveis na imagem.
 
