@@ -54,10 +54,20 @@ Regras:
 - Se não encontrar preço para um produto, não inclua na lista.
 - Retorne apenas o JSON, sem texto antes ou depois.`;
 
-  const result = await model.generateContent([
-    prompt,
-    { inlineData: { mimeType: mediaType, data: base64Image } },
-  ]);
+  let result;
+  try {
+    result = await model.generateContent([
+      prompt,
+      { inlineData: { mimeType: mediaType, data: base64Image } },
+    ]);
+  } catch (aiErr) {
+    fs.unlinkSync(req.file.path);
+    const status = aiErr?.status || aiErr?.statusCode;
+    if (status === 429) {
+      return res.status(429).json({ error: 'Limite de requisições da IA atingido. Aguarde 1 minuto e tente novamente.' });
+    }
+    throw aiErr;
+  }
 
   fs.unlinkSync(req.file.path);
 
