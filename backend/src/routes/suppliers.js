@@ -5,7 +5,7 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const c = require('../controllers/supplierController');
 
 router.use(authenticate);
-router.get('/', requireRole('gerente'), asyncHandler(c.listSuppliers));
+router.get('/', asyncHandler(c.listSuppliers));
 router.post('/quotation-prices', requireRole('gerente'), asyncHandler(c.getQuotationPrices));
 router.get('/:id', requireRole('gerente'), asyncHandler(c.getSupplier));
 router.post('/', requireRole('gerente'), asyncHandler(c.createSupplier));
