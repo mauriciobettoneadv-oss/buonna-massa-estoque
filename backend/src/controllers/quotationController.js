@@ -113,12 +113,12 @@ async function getQuotation(req, res) {
 
 async function addSupplier(req, res) {
   const { id } = req.params;
-  const { name } = req.body;
+  const { name, supplier_id } = req.body;
   if (!name) return res.status(400).json({ error: 'name é obrigatório.' });
 
   const result = await pool.query(
-    `INSERT INTO quotation_suppliers (quotation_id, name) VALUES ($1, $2) RETURNING *`,
-    [id, name]
+    `INSERT INTO quotation_suppliers (quotation_id, name, supplier_id) VALUES ($1, $2, $3) RETURNING *`,
+    [id, name, supplier_id || null]
   );
   res.status(201).json(result.rows[0]);
 }
@@ -141,6 +141,23 @@ async function savePrices(req, res) {
       [supplierId, product_id, unit_price || 0]
     );
   }
+
+  // Sync to global supplier_product_prices if linked to a registered supplier
+  const qs = await pool.query(`SELECT supplier_id FROM quotation_suppliers WHERE id = $1`, [supplierId]);
+  const globalSupplierId = qs.rows[0]?.supplier_id;
+  if (globalSupplierId) {
+    for (const { product_id, unit_price } of prices) {
+      if (Number(unit_price) > 0) {
+        await pool.query(
+          `INSERT INTO supplier_product_prices (supplier_id, product_id, unit_price, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (supplier_id, product_id) DO UPDATE SET unit_price = $3, updated_at = NOW()`,
+          [globalSupplierId, product_id, unit_price]
+        );
+      }
+    }
+  }
+
   res.json({ ok: true });
 }
 

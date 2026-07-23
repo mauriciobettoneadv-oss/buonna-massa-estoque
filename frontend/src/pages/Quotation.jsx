@@ -305,6 +305,8 @@ export default function Quotation() {
   const [showOrders, setShowOrders] = useState(false);
   const [showQuotationRequest, setShowQuotationRequest] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierId, setNewSupplierId] = useState('');
+  const [globalSuppliers, setGlobalSuppliers] = useState([]);
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [error, setError] = useState('');
   const [quotationRequestText, setQuotationRequestText] = useState('');
@@ -331,6 +333,9 @@ export default function Quotation() {
   }
 
   useEffect(() => { loadList().catch(() => {}); }, [token]);
+  useEffect(() => {
+    request('/suppliers', { token }).then(setGlobalSuppliers).catch(() => {});
+  }, [token]);
   useEffect(() => { if (selectedId) loadQuotation(selectedId).catch((e) => setError(e.message)); }, [selectedId]);
 
   function handleCreated(id) {
@@ -341,11 +346,16 @@ export default function Quotation() {
   }
 
   async function handleAddSupplier() {
-    if (!newSupplierName.trim()) return;
+    const name = newSupplierId
+      ? globalSuppliers.find((s) => String(s.id) === newSupplierId)?.name || newSupplierName.trim()
+      : newSupplierName.trim();
+    if (!name) return;
     setAddingSupplier(true);
     try {
-      const s = await request(`/quotations/${selectedId}/suppliers`, { method: 'POST', token, body: { name: newSupplierName.trim() } });
+      const body = { name, supplier_id: newSupplierId ? Number(newSupplierId) : undefined };
+      const s = await request(`/quotations/${selectedId}/suppliers`, { method: 'POST', token, body });
       setNewSupplierName('');
+      setNewSupplierId('');
       await loadQuotation(selectedId);
       setActiveTab(s.id);
     } catch (e) {
@@ -476,11 +486,34 @@ export default function Quotation() {
             </div>
           </div>
 
-          <div className="flex gap-2 mb-4">
-            <input value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddSupplier()}
-              placeholder="Nome do fornecedor..." className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs" />
-            <button onClick={handleAddSupplier} disabled={addingSupplier || !newSupplierName.trim()} className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {globalSuppliers.length > 0 ? (
+              <select
+                value={newSupplierId}
+                onChange={(e) => { setNewSupplierId(e.target.value); setNewSupplierName(''); }}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs"
+              >
+                <option value="">— Selecionar fornecedor cadastrado —</option>
+                {globalSuppliers.map((s) => (
+                  <option key={s.id} value={String(s.id)}>{s.name}</option>
+                ))}
+                <option value="__novo__">+ Novo fornecedor (digitar nome)</option>
+              </select>
+            ) : null}
+            {(newSupplierId === '__novo__' || globalSuppliers.length === 0) && (
+              <input
+                value={newSupplierName}
+                onChange={(e) => setNewSupplierName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddSupplier()}
+                placeholder="Nome do fornecedor..."
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs"
+              />
+            )}
+            <button
+              onClick={handleAddSupplier}
+              disabled={addingSupplier || (!newSupplierId && !newSupplierName.trim()) || newSupplierId === '__novo__' && !newSupplierName.trim()}
+              className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+            >
               + Adicionar Fornecedor
             </button>
           </div>
