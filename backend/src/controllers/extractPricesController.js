@@ -59,7 +59,7 @@ Regras:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'nvidia/nemotron-nano-12b-v2-vl:free',
+        model: 'google/gemma-4-26b-a4b-it:free',
         messages: [
           {
             role: 'user',
