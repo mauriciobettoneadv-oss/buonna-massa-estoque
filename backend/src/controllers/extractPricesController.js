@@ -1,4 +1,3 @@
-const { GoogleGenAI } = require('@google/genai');
 const pool = require('../db/pool');
 const fs = require('fs');
 
@@ -15,8 +14,8 @@ function similarity(a, b) {
 
 async function extractPrices(req, res) {
   if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada.' });
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY não configurada no servidor.' });
+  if (!process.env.OPENROUTER_API_KEY) {
+    return res.status(500).json({ error: 'OPENROUTER_API_KEY não configurada no servidor.' });
   }
 
   const { id: quotationId, supplierId } = req.params;
@@ -37,8 +36,6 @@ async function extractPrices(req, res) {
 
   const productList = products.map((p) => `- ${p.name} (${p.purchase_unit})`).join('\n');
 
-  const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
   const prompt = `Esta é uma lista de preços de um fornecedor. Extraia todos os produtos e seus preços unitários visíveis na imagem.
 
 Produtos que estou procurando (mas pode haver outros):
@@ -55,25 +52,39 @@ Regras:
 
   let responseText;
   try {
-    const result = await genAI.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: prompt },
-            { inlineData: { mimeType: mediaType, data: base64Image } },
-          ],
-        },
-      ],
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.0-flash-exp:free',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${base64Image}` } },
+            ],
+          },
+        ],
+      }),
     });
-    responseText = result.text;
-  } catch (aiErr) {
-    fs.unlinkSync(req.file.path);
-    const status = aiErr?.status || aiErr?.statusCode || aiErr?.code;
-    if (status === 429 || String(aiErr?.message).includes('429') || String(aiErr?.message).includes('RESOURCE_EXHAUSTED')) {
-      return res.status(429).json({ error: 'Limite de requisições da IA atingido. Aguarde 1 minuto e tente novamente.' });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      if (response.status === 429) {
+        fs.unlinkSync(req.file.path);
+        return res.status(429).json({ error: 'Limite de requisições da IA atingido. Aguarde 1 minuto e tente novamente.' });
+      }
+      throw new Error(`OpenRouter error ${response.status}: ${JSON.stringify(errData)}`);
     }
+
+    const data = await response.json();
+    responseText = data.choices?.[0]?.message?.content || '';
+  } catch (aiErr) {
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     throw aiErr;
   }
 
