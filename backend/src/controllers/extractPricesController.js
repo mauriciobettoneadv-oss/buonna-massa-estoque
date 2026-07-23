@@ -59,7 +59,7 @@ Regras:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'qwen/qwen2.5-vl-72b-instruct:free',
+        model: 'google/gemma-4-27b-it:free',
         messages: [
           {
             role: 'user',
