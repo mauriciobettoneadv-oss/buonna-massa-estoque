@@ -1,4 +1,4 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 const pool = require('../db/pool');
 const fs = require('fs');
 
@@ -37,8 +37,7 @@ async function extractPrices(req, res) {
 
   const productList = products.map((p) => `- ${p.name} (${p.purchase_unit})`).join('\n');
 
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const prompt = `Esta é uma lista de preços de um fornecedor. Extraia todos os produtos e seus preços unitários visíveis na imagem.
 
@@ -54,16 +53,25 @@ Regras:
 - Se não encontrar preço para um produto, não inclua na lista.
 - Retorne apenas o JSON, sem texto antes ou depois.`;
 
-  let result;
+  let responseText;
   try {
-    result = await model.generateContent([
-      prompt,
-      { inlineData: { mimeType: mediaType, data: base64Image } },
-    ]);
+    const result = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: mediaType, data: base64Image } },
+          ],
+        },
+      ],
+    });
+    responseText = result.text;
   } catch (aiErr) {
     fs.unlinkSync(req.file.path);
-    const status = aiErr?.status || aiErr?.statusCode;
-    if (status === 429) {
+    const status = aiErr?.status || aiErr?.statusCode || aiErr?.code;
+    if (status === 429 || String(aiErr?.message).includes('429') || String(aiErr?.message).includes('RESOURCE_EXHAUSTED')) {
       return res.status(429).json({ error: 'Limite de requisições da IA atingido. Aguarde 1 minuto e tente novamente.' });
     }
     throw aiErr;
@@ -73,7 +81,7 @@ Regras:
 
   let extracted = [];
   try {
-    const text = result.response.text().trim();
+    const text = responseText.trim();
     const jsonStr = text.match(/\[[\s\S]*\]/)?.[0];
     extracted = JSON.parse(jsonStr);
   } catch {
