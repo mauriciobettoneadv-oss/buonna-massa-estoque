@@ -16,19 +16,22 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
+        {/* Todos os autenticados */}
         <Route element={<ProtectedRoute />}>
           <Route path="/contagem" element={<Counting />} />
         </Route>
 
-        <Route element={<ProtectedRoute roles={['dono', 'gerente', 'proprietario']} />}>
+        {/* Dono/proprietario/gerente: produtos */}
+        <Route element={<ProtectedRoute roles={['dono', 'proprietario', 'gerente']} />}>
           <Route path="/produtos" element={<Products />} />
+        </Route>
+
+        {/* Somente dono/proprietario */}
+        <Route element={<ProtectedRoute roles={['dono', 'proprietario']} />}>
           <Route path="/relatorio" element={<Report />} />
           <Route path="/cotacao" element={<Quotation />} />
           <Route path="/usuarios" element={<Users />} />
           <Route path="/fornecedores" element={<Suppliers />} />
-        </Route>
-
-        <Route element={<ProtectedRoute roles={['dono', 'proprietario']} />}>
           <Route path="/notificacoes" element={<NotificationSettings />} />
         </Route>
 

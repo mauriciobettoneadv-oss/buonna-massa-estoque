@@ -11,24 +11,24 @@ export default function Navbar() {
   }
 
   const isOwner = ['dono', 'proprietario'].includes(user?.role);
-  const isManager = ['dono', 'gerente', 'proprietario'].includes(user?.role);
+  const isGerente = user?.role === 'gerente';
 
   return (
     <nav className="bg-brand-red text-white px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-6">
         <span className="font-bold">Buonna Massa</span>
         <Link to="/contagem" className="text-sm hover:underline">Contagem</Link>
-        {isManager && (
+        {(isOwner || isGerente) && (
+          <Link to="/produtos" className="text-sm hover:underline">Produtos</Link>
+        )}
+        {isOwner && (
           <>
-            <Link to="/produtos" className="text-sm hover:underline">Produtos</Link>
             <Link to="/relatorio" className="text-sm hover:underline">Relatório</Link>
             <Link to="/cotacao" className="text-sm hover:underline">Cotação</Link>
             <Link to="/fornecedores" className="text-sm hover:underline">Fornecedores</Link>
             <Link to="/usuarios" className="text-sm hover:underline">Usuários</Link>
+            <Link to="/notificacoes" className="text-sm hover:underline">🔔 Notificações</Link>
           </>
-        )}
-        {isOwner && (
-          <Link to="/notificacoes" className="text-sm hover:underline">🔔 Notificações</Link>
         )}
       </div>
       <div className="flex items-center gap-3 text-sm">

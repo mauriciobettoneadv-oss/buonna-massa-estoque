@@ -9,8 +9,8 @@ const router = express.Router();
 
 router.use(authenticate);
 router.get('/', asyncHandler(listProducts));
-router.post('/', requireRole('proprietario'), asyncHandler(createProduct));
-router.put('/:id', requireRole('proprietario'), asyncHandler(updateProduct));
-router.patch('/:id/active', requireRole('proprietario'), asyncHandler(setActive));
+router.post('/', requireRole('gerente'), asyncHandler(createProduct));
+router.put('/:id', requireRole('gerente'), asyncHandler(updateProduct));
+router.patch('/:id/active', requireRole('gerente'), asyncHandler(setActive));
 
 module.exports = router;

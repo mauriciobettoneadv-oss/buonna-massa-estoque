@@ -6,11 +6,11 @@ const c = require('../controllers/supplierController');
 
 router.use(authenticate);
 router.get('/', asyncHandler(c.listSuppliers));
-router.post('/quotation-prices', requireRole('gerente'), asyncHandler(c.getQuotationPrices));
-router.get('/:id', requireRole('gerente'), asyncHandler(c.getSupplier));
-router.post('/', requireRole('gerente'), asyncHandler(c.createSupplier));
-router.put('/:id', requireRole('gerente'), asyncHandler(c.updateSupplier));
-router.patch('/:id/active', requireRole('gerente'), asyncHandler(c.toggleActive));
-router.post('/:id/prices', requireRole('gerente'), asyncHandler(c.savePrice));
-router.delete('/:id/prices/:priceId', requireRole('gerente'), asyncHandler(c.deletePrice));
+router.post('/quotation-prices', asyncHandler(c.getQuotationPrices));
+router.get('/:id', asyncHandler(c.getSupplier));
+router.post('/', asyncHandler(c.createSupplier));
+router.put('/:id', asyncHandler(c.updateSupplier));
+router.patch('/:id/active', asyncHandler(c.toggleActive));
+router.post('/:id/prices', asyncHandler(c.savePrice));
+router.delete('/:id/prices/:priceId', asyncHandler(c.deletePrice));
 module.exports = router;
