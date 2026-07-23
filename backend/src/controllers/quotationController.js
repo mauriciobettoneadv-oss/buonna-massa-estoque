@@ -116,9 +116,25 @@ async function addSupplier(req, res) {
   const { name, supplier_id } = req.body;
   if (!name) return res.status(400).json({ error: 'name é obrigatório.' });
 
+  let finalSupplierId = supplier_id || null;
+
+  // If no existing supplier linked, create one in the global registry
+  if (!finalSupplierId) {
+    const existing = await pool.query(`SELECT id FROM suppliers WHERE LOWER(name) = LOWER($1) LIMIT 1`, [name]);
+    if (existing.rows.length > 0) {
+      finalSupplierId = existing.rows[0].id;
+    } else {
+      const created = await pool.query(
+        `INSERT INTO suppliers (name, categories, delivery_days) VALUES ($1, $2, $3) RETURNING id`,
+        [name, [], []]
+      );
+      finalSupplierId = created.rows[0].id;
+    }
+  }
+
   const result = await pool.query(
     `INSERT INTO quotation_suppliers (quotation_id, name, supplier_id) VALUES ($1, $2, $3) RETURNING *`,
-    [id, name, supplier_id || null]
+    [id, name, finalSupplierId]
   );
   res.status(201).json(result.rows[0]);
 }
