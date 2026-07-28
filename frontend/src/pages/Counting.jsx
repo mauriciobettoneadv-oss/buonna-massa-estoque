@@ -185,10 +185,10 @@ export default function Counting() {
                 />
               </div>
               <div className="flex flex-col items-center">
-                <label className="text-xs text-gray-500">Comprar ({item.unit_measure})</label>
+                <label className="text-xs text-gray-500">Comprar ({item.purchase_unit || item.unit_measure})</label>
                 <input
                   type="number"
-                  step={isDecimalUnit(item.unit_measure) ? '0.01' : '1'}
+                  step={isDecimalUnit(item.purchase_unit || item.unit_measure) ? '0.01' : '1'}
                   min="0"
                   value={item.qty_to_buy}
                   disabled={isReadOnly}
