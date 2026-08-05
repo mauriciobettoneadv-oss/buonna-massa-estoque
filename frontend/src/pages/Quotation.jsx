@@ -77,22 +77,32 @@ function NewQuotationModal({ onClose, onCreated, token }) {
 // ─── Extract Result Modal ─────────────────────────────────────────────────────
 
 function ExtractResultModal({ result, onClose }) {
+  const warnings = result.matches.filter((m) => m.brand_warning);
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[80vh] flex flex-col">
-        <h2 className="text-lg font-bold text-brand-red mb-2">Preços extraídos do print</h2>
-        <p className="text-sm text-gray-500 mb-4">
+        <h2 className="text-lg font-bold text-brand-red mb-2">Preços extraídos</h2>
+        <p className="text-sm text-gray-500 mb-2">
           {result.total_matched} de {result.total_extracted} itens identificados e salvos automaticamente.
         </p>
+        {warnings.length > 0 && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-3">
+            <p className="text-xs font-semibold text-amber-700 mb-1">⚠ Divergência de marca detectada:</p>
+            {warnings.map((m, i) => (
+              <p key={i} className="text-xs text-amber-700">{m.product_name}: {m.brand_warning}</p>
+            ))}
+          </div>
+        )}
         <div className="overflow-y-auto flex-1 divide-y border rounded-lg mb-4">
           {result.matches.map((m, i) => (
-            <div key={i} className="flex items-center gap-3 p-2 text-sm">
+            <div key={i} className={`flex items-center gap-3 p-2 text-sm ${m.brand_warning ? 'bg-amber-50' : ''}`}>
               <span className={`w-10 text-center text-xs font-bold rounded-full px-1 py-0.5 ${m.confidence >= 80 ? 'bg-green-100 text-green-700' : m.confidence >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
                 {m.confidence}%
               </span>
               <div className="flex-1">
                 <p className="font-medium">{m.product_name}</p>
                 <p className="text-xs text-gray-400">Extraído: "{m.extracted_name}"</p>
+                {m.brand_warning && <p className="text-xs text-amber-600">⚠ {m.brand_warning}</p>}
               </div>
               <span className="font-semibold text-green-700">{fmt(m.unit_price)}</span>
             </div>
@@ -207,15 +217,18 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
+  const [showPaste, setShowPaste] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [pasting, setPasting] = useState(false);
   const sp = localPrices[supplier.id] || {};
 
   async function handleUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append('image', file);
+      for (const file of files) formData.append('files', file);
       const res = await fetch(`${API}/quotations/${quotationId}/suppliers/${supplier.id}/extract`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -236,25 +249,57 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
     }
   }
 
+  async function handlePasteExtract() {
+    if (!pasteText.trim()) return;
+    setPasting(true);
+    try {
+      const res = await fetch(`${API}/quotations/${quotationId}/suppliers/${supplier.id}/extract-text`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: pasteText }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Erro ao extrair preços do texto.');
+      }
+      const result = await res.json();
+      setExtractResult(result);
+      setShowPaste(false);
+      setPasteText('');
+      onExtracted();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setPasting(false);
+    }
+  }
+
   return (
     <div className="bg-white rounded-b-lg rounded-tr-lg shadow">
       {extractResult && (
         <ExtractResultModal result={extractResult} onClose={() => setExtractResult(null)} />
       )}
-      <div className="flex items-center justify-between p-3 border-b gap-3">
+      <div className="flex items-center justify-between p-3 border-b gap-3 flex-wrap">
         <span className="font-medium text-sm">{supplier.name}</span>
-        <div className="flex items-center gap-2">
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleUpload} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={handleUpload} />
           <button
             onClick={() => fileRef.current.click()}
-            disabled={uploading}
+            disabled={uploading || pasting}
             className="flex items-center gap-1 bg-blue-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
           >
             {uploading ? (
-              <><span className="animate-spin">⟳</span> Lendo print...</>
+              <><span className="animate-spin">⟳</span> Lendo...</>
             ) : (
-              <>📷 Ler preços do print</>
+              <>📷 Imagem / PDF</>
             )}
+          </button>
+          <button
+            onClick={() => setShowPaste((v) => !v)}
+            disabled={uploading || pasting}
+            className="flex items-center gap-1 bg-violet-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
+          >
+            📋 Colar cotação
           </button>
           <button onClick={() => onSave(supplier.id)} className="bg-brand-red text-white rounded px-3 py-1 text-sm hover:opacity-90">
             Salvar preços
@@ -262,8 +307,32 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
           <button onClick={() => onDelete(supplier.id)} className="text-red-500 text-sm hover:underline">Remover</button>
         </div>
       </div>
+      {showPaste && (
+        <div className="px-3 py-2 bg-violet-50 border-b">
+          <p className="text-xs text-violet-700 mb-1">Cole o texto da cotação (WhatsApp, e-mail, etc.):</p>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={5}
+            className="w-full border border-violet-300 rounded p-2 text-sm font-mono resize-y"
+            placeholder="Cole aqui a mensagem do fornecedor com os preços..."
+          />
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={handlePasteExtract}
+              disabled={pasting || !pasteText.trim()}
+              className="bg-violet-600 text-white rounded px-3 py-1 text-sm disabled:opacity-50"
+            >
+              {pasting ? 'Extraindo...' : 'Extrair preços'}
+            </button>
+            <button onClick={() => { setShowPaste(false); setPasteText(''); }} className="text-sm text-gray-500 hover:underline">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
       <p className="text-xs text-gray-400 px-3 py-1 bg-blue-50">
-        Envie um print/foto da lista de preços do fornecedor e os preços serão preenchidos automaticamente por IA.
+        Envie imagem, PDF ou cole o texto da cotação e os preços serão preenchidos automaticamente por IA.
       </p>
 
       {products.map((p) => {
