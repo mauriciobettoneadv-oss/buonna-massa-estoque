@@ -41,11 +41,17 @@ async function sendMessage(number, text, settings) {
   return resp.json();
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function sendToRecipients(recipients, messageType, message) {
   const settings = await getSettings();
 
-  for (const recipient of recipients) {
+  for (let i = 0; i < recipients.length; i++) {
+    const recipient = recipients[i];
     if (!recipient.whatsapp) continue;
+    if (i > 0) await sleep(2000); // 2s entre envios para evitar 429
 
     let status = 'enviado';
     let errorDetail = null;
@@ -56,7 +62,7 @@ async function sendToRecipients(recipients, messageType, message) {
       status = 'falhou';
       errorDetail = err.message;
 
-      // Reenvio automático após 5 minutos
+      // Reenvio automático após 5 minutos (com delay proporcional ao índice)
       setTimeout(async () => {
         try {
           const freshSettings = await getSettings();
@@ -78,7 +84,7 @@ async function sendToRecipients(recipients, messageType, message) {
             errorDetail: retryErr.message,
           });
         }
-      }, 5 * 60 * 1000);
+      }, 5 * 60 * 1000 + i * 2000);
     }
 
     await logNotification({
