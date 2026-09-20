@@ -18,24 +18,25 @@ async function logNotification({ recipientName, recipientWhatsapp, messageType, 
 }
 
 async function sendMessage(number, text, settings) {
-  if (!settings?.evolution_url || !settings?.evolution_key || !settings?.evolution_instance) {
-    throw new Error('Evolution API não configurada. Acesse Configurações de Notificações.');
+  if (!settings?.evolution_instance || !settings?.evolution_key) {
+    throw new Error('Z-API não configurada. Acesse Configurações de Notificações.');
   }
 
   const cleanNumber = number.replace(/\D/g, '');
   const fullNumber = cleanNumber.startsWith('55') ? cleanNumber : `55${cleanNumber}`;
 
-  const url = `${settings.evolution_url.replace(/\/$/, '')}/message/sendText/${settings.evolution_instance}`;
+  // Z-API: https://api.z-api.io/instances/{instanceId}/token/{token}/send-text
+  const url = `https://api.z-api.io/instances/${settings.evolution_instance}/token/${settings.evolution_key}/send-text`;
 
   const resp = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: settings.evolution_key },
-    body: JSON.stringify({ number: fullNumber, text }),
+    headers: { 'Content-Type': 'application/json', 'client-token': settings.evolution_url || '' },
+    body: JSON.stringify({ phone: fullNumber, message: text }),
   });
 
   if (!resp.ok) {
     const errText = await resp.text().catch(() => '');
-    throw new Error(`Evolution API ${resp.status}: ${errText}`);
+    throw new Error(`Z-API ${resp.status}: ${errText}`);
   }
 
   return resp.json();

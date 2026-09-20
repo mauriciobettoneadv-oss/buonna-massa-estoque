@@ -165,44 +165,44 @@ export default function NotificationSettings() {
             </div>
           </div>
 
-          {/* BLOCO 2 — Evolution API */}
+          {/* BLOCO 2 — Z-API */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="font-semibold text-gray-700 mb-4 text-lg">📱 Configuração Evolution API</h2>
+            <h2 className="font-semibold text-gray-700 mb-4 text-lg">📱 Configuração Z-API</h2>
 
             <p className="text-sm text-gray-500 mb-4">
-              A Evolution API é o serviço que envia as mensagens pelo WhatsApp da pizzaria.
-              Configure as credenciais abaixo após instalar e conectar o WhatsApp no painel da Evolution.
+              O Z-API é o serviço que envia as mensagens pelo WhatsApp da pizzaria.
+              Configure as credenciais abaixo — você encontra na página da instância em app.z-api.io.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">URL da Evolution API</label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ID da Instância</label>
                 <input
-                  type="url"
-                  placeholder="https://sua-evolution-api.railway.app"
+                  type="text"
+                  placeholder="3F9777429B2EA1C650105245B330EF50"
                   className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
-                  value={settings.evolution_url || ''}
-                  onChange={e => setSettings({ ...settings, evolution_url: e.target.value })}
+                  value={settings.evolution_instance || ''}
+                  onChange={e => setSettings({ ...settings, evolution_instance: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">API Key (Global)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Token da Instância</label>
                 <input
                   type="password"
-                  placeholder="sua-chave-secreta"
+                  placeholder="67557E45504651845EFDB254"
                   className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
                   value={settings.evolution_key || ''}
                   onChange={e => setSettings({ ...settings, evolution_key: e.target.value })}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome da Instância</label>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client Token (opcional — Security → Client-Token no Z-API)</label>
                 <input
                   type="text"
-                  placeholder="buonna-massa"
+                  placeholder="Deixe em branco se não usar"
                   className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
-                  value={settings.evolution_instance || ''}
-                  onChange={e => setSettings({ ...settings, evolution_instance: e.target.value })}
+                  value={settings.evolution_url || ''}
+                  onChange={e => setSettings({ ...settings, evolution_url: e.target.value })}
                 />
               </div>
             </div>
