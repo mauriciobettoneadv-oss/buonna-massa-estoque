@@ -10,7 +10,6 @@ const quotationRoutes = require('./routes/quotations');
 const userRoutes = require('./routes/users');
 const supplierRoutes = require('./routes/suppliers');
 const notificationRoutes = require('./routes/notifications');
-const { startCronJobs } = require('./services/cronService');
 
 const app = express();
 
@@ -42,5 +41,4 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Buonna Massa API rodando em http://localhost:${PORT}`);
-  startCronJobs();
 });
