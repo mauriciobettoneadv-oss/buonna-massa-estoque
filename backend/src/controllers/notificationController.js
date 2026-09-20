@@ -54,8 +54,8 @@ async function testConnection(req, res) {
   if (!number) return res.status(400).json({ error: 'Informe o número para teste.' });
 
   const settings = await getSettings();
-  if (!settings?.evolution_url) {
-    return res.status(400).json({ error: 'Evolution API não configurada.' });
+  if (!settings?.evolution_instance || !settings?.evolution_key) {
+    return res.status(400).json({ error: 'Z-API não configurada. Preencha o ID e Token da instância.' });
   }
 
   try {
