@@ -57,7 +57,7 @@ function NewQuotationModal({ onClose, onCreated, token }) {
             <label key={c.id} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50">
               <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="accent-brand-red" />
               <span className="text-sm">
-                <strong>{c.unit_name}</strong> — {new Date(c.created_at).toLocaleDateString('pt-BR')}
+                <strong>{c.unit_name}</strong> — finalizada em {new Date(c.finalized_at || c.created_at).toLocaleDateString('pt-BR')}
                 <span className="ml-2 text-gray-400">({c.items_to_buy} itens a comprar)</span>
               </span>
             </label>
@@ -544,7 +544,9 @@ export default function Quotation() {
           <div className="flex items-center gap-3 mb-4">
             <button onClick={() => { setSelectedId(null); setData(null); }} className="text-sm text-brand-red hover:underline">← Voltar</button>
             <h2 className="font-semibold">Cotação #{selectedId}</h2>
-            <span className="text-xs text-gray-500">{data.counts.map((c) => c.unit_name).join(' + ')}</span>
+            <span className="text-xs text-gray-500">
+              {data.counts.map((c) => `${c.unit_name} (${new Date(c.finalized_at).toLocaleDateString('pt-BR')})`).join(' + ')}
+            </span>
             <div className="ml-auto flex gap-2">
               <button onClick={generateQuotationRequest} className="border border-brand-red text-brand-red rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand-red hover:text-white">
                 Pedido de Cotação

@@ -43,7 +43,7 @@ async function getQuotation(req, res) {
 
   // Counts linked with unit info
   const counts = await pool.query(
-    `SELECT sc.id, sc.status, u.id AS unit_id, u.name AS unit_name
+    `SELECT sc.id, sc.status, sc.finalized_at, u.id AS unit_id, u.name AS unit_name
      FROM quotation_counts qc
      JOIN stock_counts sc ON sc.id = qc.stock_count_id
      JOIN units u ON u.id = sc.unit_id

@@ -12,7 +12,7 @@ router.use(authenticate);
 router.get('/finalized', asyncHandler(async (req, res) => {
   const pool = require('../db/pool');
   const result = await pool.query(
-    `SELECT sc.id, sc.created_at, sc.status, u.name AS unit_name,
+    `SELECT sc.id, sc.created_at, sc.finalized_at, sc.status, u.name AS unit_name,
             COUNT(sci.id) FILTER (WHERE sci.qty_to_buy > 0) AS items_to_buy
      FROM stock_counts sc
      JOIN units u ON u.id = sc.unit_id
