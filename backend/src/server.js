@@ -11,6 +11,8 @@ const userRoutes = require('./routes/users');
 const supplierRoutes = require('./routes/suppliers');
 const notificationRoutes = require('./routes/notifications');
 
+const { startCronJobs } = require('./services/cronService');
+
 const app = express();
 
 const allowedOrigins = (process.env.FRONTEND_URL || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -41,4 +43,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Buonna Massa API rodando em http://localhost:${PORT}`);
+  startCronJobs();
 });
