@@ -32,20 +32,33 @@ async function getProducts(quotationId) {
 }
 
 function buildPrompt(products) {
-  const productList = products.map((p) => `- ${p.name} (${p.purchase_unit})`).join('\n');
-  return `Esta é uma lista de preços de um fornecedor. Extraia todos os produtos e seus preços unitários visíveis.
+  const productList = products.map((p) => `- ${p.name} | unidade esperada: ${p.purchase_unit}`).join('\n');
+  return `Você é um assistente especializado em extração de preços de cotações de fornecedores de pizzaria.
 
-Produtos que estou procurando (nome completo incluindo marca):
+Analise o documento abaixo (pode ser foto de tabela, PDF, mensagem de WhatsApp ou e-mail) e extraia os preços de todos os produtos que encontrar.
+
+PRODUTOS QUE ESTOU PROCURANDO (nome do produto | unidade que compramos):
 ${productList}
 
-Responda SOMENTE com um JSON válido no formato:
-[{"produto": "nome exato como aparece no documento", "marca": "marca do produto como aparece no documento, ou null se não identificável", "preco": 12.50}, ...]
+RESPONDA APENAS com um JSON válido, sem texto antes ou depois:
+[
+  {
+    "produto": "nome exato como aparece no documento",
+    "marca": "marca como aparece no documento, ou null",
+    "preco": 12.50,
+    "unidade_fornecedor": "unidade usada pelo fornecedor neste preço, ex: kg, caixa, unidade, fardo, balde, pacote, galão, etc"
+  }
+]
 
-Regras:
-- Use o preço unitário (por unidade/kg/caixa). Se houver preço por embalagem maior, divida.
-- Números decimais com ponto (não vírgula).
-- Se não encontrar preço para um produto, não inclua na lista.
-- Retorne apenas o JSON, sem texto antes ou depois.`;
+REGRAS IMPORTANTES sobre unidades e preços:
+1. Identifique QUAL unidade o fornecedor usou para o preço (kg, caixa, unidade, fardo, etc.)
+2. Se o fornecedor cotou por KG mas compramos por CAIXA — informe o preço por KG e coloque "unidade_fornecedor": "kg"
+3. Se o fornecedor cotou por CAIXA mas compramos por UNIDADE — informe o preço por caixa e coloque "unidade_fornecedor": "caixa"
+4. NÃO tente converter unidades — informe o preço como está no documento e a unidade usada
+5. Se houver preço com e sem impostos, use o preço final (com impostos)
+6. Números decimais com PONTO (ex: 12.50, não 12,50)
+7. Ignore produtos que não encontrar no documento
+8. Pode haver variações de nome — tente identificar mesmo com nome diferente`;
 }
 
 async function callAI(messages) {
@@ -58,7 +71,7 @@ async function callAI(messages) {
     body: JSON.stringify({
       model: 'google/gemini-2.5-flash',
       messages,
-      max_tokens: 2000,
+      max_tokens: 3000,
     }),
   });
 
@@ -82,6 +95,21 @@ function parseAIResponse(text) {
   return JSON.parse(jsonStr);
 }
 
+// Normaliza nomes de unidade para comparação
+function normalizeUnit(u) {
+  if (!u) return '';
+  const s = u.toLowerCase().trim();
+  if (/^kg|quilo/.test(s)) return 'kg';
+  if (/^cx|caixa/.test(s)) return 'caixa';
+  if (/^un|unid/.test(s)) return 'unidade';
+  if (/^fd|fardo/.test(s)) return 'fardo';
+  if (/^pct|pacote/.test(s)) return 'pacote';
+  if (/^balde/.test(s)) return 'balde';
+  if (/^gal/.test(s)) return 'galão';
+  if (/^lt|litro/.test(s)) return 'litro';
+  return s;
+}
+
 function matchAndCheckBrands(extracted, products) {
   const matches = [];
   for (const item of extracted) {
@@ -103,14 +131,28 @@ function matchAndCheckBrands(extracted, products) {
           brandWarning = `Fornecedor enviou "${item.marca}", mas compramos "${expectedBrand}"`;
         }
       }
+
+      // Verificar divergência de unidade
+      let unitWarning = null;
+      if (item.unidade_fornecedor && bestMatch.purchase_unit) {
+        const unitForn = normalizeUnit(item.unidade_fornecedor);
+        const unitExp = normalizeUnit(bestMatch.purchase_unit);
+        if (unitForn && unitExp && unitForn !== unitExp) {
+          unitWarning = `Fornecedor cotou por ${item.unidade_fornecedor}, mas compramos por ${bestMatch.purchase_unit} — verifique o preço`;
+        }
+      }
+
       matches.push({
         product_id: bestMatch.product_id,
         product_name: bestMatch.name,
         extracted_name: item.produto,
         extracted_brand: item.marca || null,
+        extracted_unit: item.unidade_fornecedor || null,
+        expected_unit: bestMatch.purchase_unit,
         unit_price: Number(item.preco),
         confidence: Math.round(bestScore * 100),
         brand_warning: brandWarning,
+        unit_warning: unitWarning,
       });
     }
   }
