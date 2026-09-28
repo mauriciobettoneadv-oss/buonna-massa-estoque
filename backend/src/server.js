@@ -11,7 +11,7 @@ const userRoutes = require('./routes/users');
 const supplierRoutes = require('./routes/suppliers');
 const notificationRoutes = require('./routes/notifications');
 
-const { startCronJobs } = require('./services/cronService');
+const { startCronJobs, runHealthCheck } = require('./services/cronService');
 
 const app = express();
 
@@ -26,6 +26,25 @@ app.use(cors({
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// Histórico de health checks (últimos 10)
+app.get('/api/health/history', async (req, res) => {
+  const pool = require('./db/pool');
+  const r = await pool.query('SELECT * FROM health_checks ORDER BY checked_at DESC LIMIT 10');
+  res.json(r.rows);
+});
+
+// Rodar health check manualmente (dono)
+app.post('/api/health/run', async (req, res) => {
+  try {
+    await runHealthCheck();
+    const pool = require('./db/pool');
+    const r = await pool.query('SELECT * FROM health_checks ORDER BY checked_at DESC LIMIT 1');
+    res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/units', unitRoutes);

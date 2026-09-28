@@ -36,6 +36,8 @@ export default function NotificationSettings() {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [healthHistory, setHealthHistory] = useState([]);
+  const [runningHealth, setRunningHealth] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -45,7 +47,24 @@ export default function NotificationSettings() {
       .then(([s, l]) => { setSettings(s); setLog(l); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
+
+    fetch(`${import.meta.env.VITE_API_URL || ''}/api/health/history`)
+      .then(r => r.json()).then(setHealthHistory).catch(() => {});
   }, [token]);
+
+  async function handleRunHealth() {
+    setRunningHealth(true);
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL || ''}/api/health/run`, { method: 'POST' });
+      const r = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/health/history`);
+      setHealthHistory(await r.json());
+      setMsg('Teste executado com sucesso!');
+    } catch (e) {
+      setError('Erro ao executar teste.');
+    } finally {
+      setRunningHealth(false);
+    }
+  }
 
   function toggleDay(day) {
     const days = settings.schedule_days || [];
@@ -289,6 +308,46 @@ export default function NotificationSettings() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* BLOCO 4 — Teste de Saúde do Sistema */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h2 className="font-semibold text-gray-700 text-lg">🩺 Saúde do Sistema</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Roda automaticamente todo sábado às 22h. Você também pode rodar agora.</p>
+          </div>
+          <button
+            onClick={handleRunHealth}
+            disabled={runningHealth}
+            className="border border-brand-red text-brand-red px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-50 disabled:opacity-50"
+          >
+            {runningHealth ? 'Testando...' : '▶ Rodar Agora'}
+          </button>
+        </div>
+
+        {healthHistory.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">Nenhum teste executado ainda.</p>
+        ) : (
+          <div className="space-y-2">
+            {healthHistory.map(h => (
+              <div key={h.id} className={`flex items-center gap-3 p-3 rounded-lg border text-sm ${h.db_ok && h.ai_ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                <span className="text-lg">{h.db_ok && h.ai_ok ? '✅' : '❌'}</span>
+                <div className="flex-1">
+                  <div className="font-medium text-gray-700">
+                    {new Date(h.checked_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                  </div>
+                  <div className="text-xs text-gray-500 flex gap-3 mt-0.5">
+                    <span>Banco: {h.db_ok ? '✓ ok' : '✗ erro'}</span>
+                    <span>IA ({h.ai_model}): {h.ai_ok ? '✓ ok' : '✗ erro'}</span>
+                    {h.details?.db_error && <span className="text-red-600">DB: {h.details.db_error}</span>}
+                    {h.details?.ai_error && <span className="text-red-600">IA: {h.details.ai_error}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
