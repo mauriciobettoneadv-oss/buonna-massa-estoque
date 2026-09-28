@@ -1,14 +1,18 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const router = express.Router();
+
+const tmpDir = path.join(__dirname, '../../tmp/');
+if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 const asyncHandler = require('../middleware/asyncHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
 const c = require('../controllers/quotationController');
 const { extractPrices, extractPricesFromText } = require('../controllers/extractPricesController');
 
 const upload = multer({
-  dest: path.join(__dirname, '../../tmp/'),
+  dest: tmpDir,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') cb(null, true);

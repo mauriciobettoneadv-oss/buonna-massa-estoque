@@ -169,7 +169,8 @@ async function extractPrices(req, res) {
     if (aiErr.statusCode === 429) {
       return res.status(429).json({ error: 'Limite de requisições da IA atingido. Aguarde 1 minuto e tente novamente.' });
     }
-    throw aiErr;
+    console.error('[extractPrices] erro na IA:', aiErr.message);
+    return res.status(500).json({ error: `Erro ao consultar IA: ${aiErr.message}` });
   }
 
   for (const { path } of fileContents) {
@@ -214,7 +215,8 @@ async function extractPricesFromText(req, res) {
     if (aiErr.statusCode === 429) {
       return res.status(429).json({ error: 'Limite de requisições da IA atingido. Aguarde 1 minuto e tente novamente.' });
     }
-    throw aiErr;
+    console.error('[extractPricesFromText] erro na IA:', aiErr.message);
+    return res.status(500).json({ error: `Erro ao consultar IA: ${aiErr.message}` });
   }
 
   let extracted;
