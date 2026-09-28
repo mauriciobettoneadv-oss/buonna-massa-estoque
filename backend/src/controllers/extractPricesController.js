@@ -32,33 +32,55 @@ async function getProducts(quotationId) {
 }
 
 function buildPrompt(products) {
-  const productList = products.map((p) => `- ${p.name} | unidade esperada: ${p.purchase_unit}`).join('\n');
-  return `Você é um assistente especializado em extração de preços de cotações de fornecedores de pizzaria.
+  const productList = products.map((p) => `- ${p.name} | unidade que compramos: ${p.purchase_unit}`).join('\n');
+  return `Você é um assistente especializado em extração de preços de cotações de fornecedores de pizzaria brasileira.
 
-Analise o documento abaixo (pode ser foto de tabela, PDF, mensagem de WhatsApp ou e-mail) e extraia os preços de todos os produtos que encontrar.
+O documento pode ser: mensagem de WhatsApp, foto de lista impressa, tabela PDF de distribuidora, ou e-mail.
 
-PRODUTOS QUE ESTOU PROCURANDO (nome do produto | unidade que compramos):
+PRODUTOS QUE ESTOU PROCURANDO (nome completo com marca | unidade que compramos):
 ${productList}
 
-RESPONDA APENAS com um JSON válido, sem texto antes ou depois:
-[
-  {
-    "produto": "nome exato como aparece no documento",
-    "marca": "marca como aparece no documento, ou null",
-    "preco": 12.50,
-    "unidade_fornecedor": "unidade usada pelo fornecedor neste preço, ex: kg, caixa, unidade, fardo, balde, pacote, galão, etc"
-  }
-]
+RESPONDA APENAS com JSON válido, sem texto antes ou depois:
+[{"produto": "nome como aparece no documento", "marca": "marca identificada ou null", "preco": 12.50, "unidade_fornecedor": "kg|caixa|bisnaga|lata|fardo|pacote|galão|vidro|unidade|barra|bloco"}]
 
-REGRAS IMPORTANTES sobre unidades e preços:
-1. Identifique QUAL unidade o fornecedor usou para o preço (kg, caixa, unidade, fardo, etc.)
-2. Se o fornecedor cotou por KG mas compramos por CAIXA — informe o preço por KG e coloque "unidade_fornecedor": "kg"
-3. Se o fornecedor cotou por CAIXA mas compramos por UNIDADE — informe o preço por caixa e coloque "unidade_fornecedor": "caixa"
-4. NÃO tente converter unidades — informe o preço como está no documento e a unidade usada
-5. Se houver preço com e sem impostos, use o preço final (com impostos)
-6. Números decimais com PONTO (ex: 12.50, não 12,50)
-7. Ignore produtos que não encontrar no documento
-8. Pode haver variações de nome — tente identificar mesmo com nome diferente`;
+═══════════════════════════════════════════════════
+REGRAS OBRIGATÓRIAS — leia todas antes de responder
+═══════════════════════════════════════════════════
+
+── IGNORAR (não incluir no JSON) ──
+• Produtos com "não trabalho", "nao trabalho", "não tenho", "em falta", "xxx", "xxxx", "indisponível" ou qualquer variação → IGNORAR
+• Observações informais após o preço ("troca do vidro", "novo emb", "promoção") → ignorar o texto, manter só o preço
+• Texto de conversa, saudações, confirmações → ignorar
+
+── PREÇO CORRETO ──
+• Preço promocional "DE X POR Y" ou "DE X / Y" → usar SEMPRE o menor valor (Y), que é o preço final
+• Quando o documento tem coluna "Preço(Kg)" E coluna "Preço" (tabelas de distribuidora) → usar a coluna "Preço" (preço por embalagem), NUNCA "Preço(Kg)"
+• Se o produto tem quantidade na coluna "Qtd" = 1 e coluna "Total", o preço por embalagem = valor da coluna "Total"
+• Se há dois fornecedores ou marcas para o mesmo item separados por "/" → escolher o que mais se aproxima da nossa marca; se nenhum bater, incluir os dois como entradas separadas
+
+── UNIDADES ──
+• Identificar a unidade do preço cotado e preencher "unidade_fornecedor"
+• "bloco", "blocos" → considerar que o preço é por kg (cotação de laticínios em bloco é sempre por kg)
+• "bisnaga", "bisnagas" → unidade_fornecedor = "bisnaga"
+• "barra" → unidade_fornecedor = "barra" (ex: chocolate Harald — preço por barra, não por kg)
+• CX-N = caixa com N unidades → unidade_fornecedor = "caixa"
+• BG-N = bisnaga → unidade_fornecedor = "bisnaga"
+• PC-N = pacote → unidade_fornecedor = "pacote"
+• LA-N = lata → unidade_fornecedor = "lata"
+• FD-N = fardo → unidade_fornecedor = "fardo"
+• GL-N = galão → unidade_fornecedor = "galão"
+• VD-N = vidro → unidade_fornecedor = "vidro"
+• Quando o produto diz "5KG" no nome e há um preço único → o preço é pelo bloco de 5kg inteiro, unidade_fornecedor = "bloco 5kg"
+• NÃO converta preços entre unidades — informe como está no documento
+
+── MARCAS ──
+• Preencher "marca" com a marca exata como aparece no documento
+• Se a marca é diferente da que compramos, incluir mesmo assim (o sistema vai alertar o comprador)
+• Se não há marca identificável, colocar null
+
+── RECONHECIMENTO DE PRODUTO ──
+• Pode haver variação de nome, abreviação ou ordem diferente das palavras — tente identificar mesmo assim
+• Números decimais com PONTO (12.50), nunca vírgula`;
 }
 
 async function callAI(messages) {
@@ -71,7 +93,7 @@ async function callAI(messages) {
     body: JSON.stringify({
       model: 'google/gemini-2.5-flash',
       messages,
-      max_tokens: 3000,
+      max_tokens: 4000,
     }),
   });
 
