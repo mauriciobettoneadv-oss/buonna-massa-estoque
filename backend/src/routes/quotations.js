@@ -10,6 +10,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { authenticate, requireRole } = require('../middleware/auth');
 const c = require('../controllers/quotationController');
 const { extractPrices, extractPricesFromText } = require('../controllers/extractPricesController');
+const { generateSupplierToken } = require('../controllers/supplierTokenController');
 
 const upload = multer({
   dest: tmpDir,
@@ -28,6 +29,7 @@ router.get('/:id', asyncHandler(c.getQuotation));
 router.get('/:id/orders', asyncHandler(c.getOrders));
 router.post('/:id/suppliers', requireRole('proprietario'), asyncHandler(c.addSupplier));
 router.delete('/:id/suppliers/:supplierId', requireRole('proprietario'), asyncHandler(c.deleteSupplier));
+router.post('/:id/suppliers/:supplierId/token', requireRole('proprietario'), asyncHandler(generateSupplierToken));
 router.put('/:id/suppliers/:supplierId/prices', requireRole('proprietario'), asyncHandler(c.savePrices));
 router.post('/:id/suppliers/:supplierId/extract', requireRole('proprietario'), upload.array('files', 10), asyncHandler(extractPrices));
 router.post('/:id/suppliers/:supplierId/extract-text', requireRole('proprietario'), asyncHandler(extractPricesFromText));

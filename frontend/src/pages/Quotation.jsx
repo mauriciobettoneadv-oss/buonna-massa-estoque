@@ -241,14 +241,36 @@ function OrdersView({ quotationId, token, onBack }) {
 
 // ─── Supplier Tab Content ─────────────────────────────────────────────────────
 
-function SupplierTab({ supplier, quotationId, products, data, localPrices, onPriceChange, onSave, onDelete, onExtracted, token }) {
+function SupplierTab({ supplier, quotationId, products, data, localPrices, onPriceChange, onSave, onDelete, onExtracted, token, onTokenGenerated }) {
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [pasting, setPasting] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const sp = localPrices[supplier.id] || {};
+
+  async function handleCopyLink() {
+    setGeneratingLink(true);
+    try {
+      let accessToken = supplier.access_token;
+      if (!accessToken) {
+        const result = await request(`/quotations/${quotationId}/suppliers/${supplier.id}/token`, { method: 'POST', token });
+        accessToken = result.access_token;
+        onTokenGenerated(supplier.id, result);
+      }
+      const link = `${window.location.origin}/cotacao/${accessToken}`;
+      await navigator.clipboard.writeText(link).catch(() => {});
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch (e) {
+      alert('Erro ao gerar link.');
+    } finally {
+      setGeneratingLink(false);
+    }
+  }
 
   async function handleUpload(e) {
     const files = Array.from(e.target.files);
@@ -335,6 +357,21 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
           <button onClick={() => onDelete(supplier.id)} className="text-red-500 text-sm hover:underline">Remover</button>
         </div>
       </div>
+      {/* Link para o fornecedor */}
+      <div className="px-3 py-2 bg-green-50 border-b flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-green-700 flex-1">
+          {supplier.access_token
+            ? `Link gerado — o fornecedor pode preencher os preços diretamente.`
+            : `Gere um link e envie para o fornecedor preencher os preços.`}
+        </span>
+        <button
+          onClick={handleCopyLink}
+          disabled={generatingLink}
+          className="flex items-center gap-1 bg-green-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
+        >
+          {generatingLink ? '⟳ Gerando...' : linkCopied ? '✓ Copiado!' : '🔗 Copiar link'}
+        </button>
+      </div>
       {showPaste && (
         <div className="px-3 py-2 bg-violet-50 border-b">
           <p className="text-xs text-violet-700 mb-1">Cole o texto da cotação (WhatsApp, e-mail, etc.):</p>
@@ -359,9 +396,6 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
           </div>
         </div>
       )}
-      <p className="text-xs text-gray-400 px-3 py-1 bg-blue-50">
-        Envie imagem, PDF ou cole o texto da cotação e os preços serão preenchidos automaticamente por IA.
-      </p>
 
       {products.map((p) => {
         const best = bestForProduct(data.prices, data.suppliers, p.product_id);
@@ -460,6 +494,13 @@ export default function Quotation() {
     } finally {
       setAddingSupplier(false);
     }
+  }
+
+  function handleTokenGenerated(supplierId, updatedSupplier) {
+    setData((prev) => ({
+      ...prev,
+      suppliers: prev.suppliers.map((s) => s.id === supplierId ? { ...s, ...updatedSupplier } : s),
+    }));
   }
 
   async function handleDeleteSupplier(supplierId) {
@@ -647,6 +688,7 @@ export default function Quotation() {
                 onSave={saveSupplierPrices}
                 onDelete={handleDeleteSupplier}
                 onExtracted={() => loadQuotation(selectedId)}
+                onTokenGenerated={handleTokenGenerated}
                 token={token}
               />
             );

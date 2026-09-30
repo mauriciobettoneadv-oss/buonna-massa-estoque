@@ -12,6 +12,7 @@ const supplierRoutes = require('./routes/suppliers');
 const notificationRoutes = require('./routes/notifications');
 
 const { startCronJobs, runHealthCheck } = require('./services/cronService');
+const { getQuotationByToken, saveQuotationByToken } = require('./controllers/supplierTokenController');
 
 const app = express();
 
@@ -26,6 +27,10 @@ app.use(cors({
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+// Rotas públicas para fornecedores (sem autenticação)
+app.get('/api/cotacao/:token', async (req, res) => { try { await getQuotationByToken(req, res); } catch (e) { res.status(500).json({ error: e.message }); } });
+app.post('/api/cotacao/:token/precos', async (req, res) => { try { await saveQuotationByToken(req, res); } catch (e) { res.status(500).json({ error: e.message }); } });
 
 // Histórico de health checks (últimos 10)
 app.get('/api/health/history', async (req, res) => {

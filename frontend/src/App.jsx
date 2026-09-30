@@ -9,12 +9,15 @@ import Quotation from './pages/Quotation';
 import Users from './pages/Users';
 import Suppliers from './pages/Suppliers';
 import NotificationSettings from './pages/NotificationSettings';
+import SupplierQuotation from './pages/SupplierQuotation';
 
 function App() {
   return (
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
+        {/* Rota pública para fornecedores — sem autenticação */}
+        <Route path="/cotacao/:token" element={<SupplierQuotation />} />
 
         {/* Todos os autenticados */}
         <Route element={<ProtectedRoute />}>
