@@ -13,7 +13,7 @@ export default function SupplierQuotation() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch(`${API}/api/cotacao/${token}`)
+    fetch(`${API}/cotacao/${token}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) { setError(d.error); return; }
@@ -59,7 +59,7 @@ export default function SupplierQuotation() {
         };
       });
 
-      const r = await fetch(`${API}/api/cotacao/${token}/precos`, {
+      const r = await fetch(`${API}/cotacao/${token}/precos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prices: payload }),
