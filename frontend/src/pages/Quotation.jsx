@@ -266,7 +266,7 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 3000);
     } catch (e) {
-      alert('Erro ao gerar link.');
+      alert('Erro ao gerar link: ' + (e.message || e));
     } finally {
       setGeneratingLink(false);
     }
