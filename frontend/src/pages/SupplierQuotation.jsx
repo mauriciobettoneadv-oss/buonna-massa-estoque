@@ -21,8 +21,12 @@ export default function SupplierQuotation() {
         // Pré-popula preços existentes
         const initial = {};
         for (const p of d.products) {
+          const hasPrice = p.current_price != null && p.current_price > 0;
+          const formatted = hasPrice
+            ? Number(p.current_price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : '';
           initial[p.product_id] = {
-            value: p.current_price != null && p.current_price > 0 ? String(p.current_price).replace('.', ',') : '',
+            value: formatted,
             unavailable: p.current_price === 0 && p.current_price !== null,
           };
         }
@@ -33,9 +37,12 @@ export default function SupplierQuotation() {
   }, [token]);
 
   function handlePrice(productId, value) {
-    // Aceita apenas números e vírgula/ponto
-    const cleaned = value.replace(/[^0-9.,]/g, '');
-    setPrices((prev) => ({ ...prev, [productId]: { ...prev[productId], value: cleaned, unavailable: false } }));
+    // Remove tudo que não é dígito
+    const digits = value.replace(/\D/g, '');
+    // Formata como moeda: últimos 2 dígitos são centavos
+    const cents = parseInt(digits || '0', 10);
+    const formatted = (cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    setPrices((prev) => ({ ...prev, [productId]: { ...prev[productId], value: formatted, unavailable: false } }));
   }
 
   function toggleUnavailable(productId) {
@@ -51,7 +58,8 @@ export default function SupplierQuotation() {
     try {
       const payload = data.products.map((p) => {
         const entry = prices[p.product_id] || {};
-        const raw = entry.value?.replace(',', '.') || '0';
+        // Converte "1.234,56" → 1234.56
+        const raw = (entry.value || '0').replace(/\./g, '').replace(',', '.');
         return {
           product_id: p.product_id,
           unit_price: parseFloat(raw) || 0,
