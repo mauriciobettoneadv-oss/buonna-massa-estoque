@@ -64,8 +64,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erro interno do servidor.' });
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Buonna Massa API rodando em http://localhost:${PORT}`);
-  startCronJobs();
-});
+async function startServer() {
+  const pool = require('./db/pool');
+  // Garante que as colunas de token de fornecedor existam no banco de produção
+  try {
+    await pool.query(`
+      ALTER TABLE quotation_suppliers
+        ADD COLUMN IF NOT EXISTS access_token TEXT UNIQUE,
+        ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ
+    `);
+    console.log('[startup] Colunas de supplier token verificadas.');
+  } catch (e) {
+    console.error('[startup] Erro ao verificar colunas de supplier token:', e.message);
+  }
+
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`Buonna Massa API rodando em http://localhost:${PORT}`);
+    startCronJobs();
+  });
+}
+
+startServer();
