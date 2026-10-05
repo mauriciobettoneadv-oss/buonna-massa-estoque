@@ -149,7 +149,6 @@ function ExtractResultModal({ result, onClose }) {
 
 function OrdersView({ quotationId, token, onBack }) {
   const [orders, setOrders] = useState(null);
-  const [activeUnit, setActiveUnit] = useState(0);
   const [copied, setCopied] = useState({});
 
   useEffect(() => {
@@ -158,83 +157,147 @@ function OrdersView({ quotationId, token, onBack }) {
 
   if (!orders) return <p className="text-gray-500 p-4">Carregando pedidos...</p>;
 
-  function buildOrderText(order) {
+  // Consolida todos os pedidos de todas as unidades por fornecedor
+  // supplierMap: { supplierName: { unitName: [items] } }
+  function buildSupplierMap() {
+    const map = {};
+    for (const order of orders) {
+      for (const [supplier, items] of Object.entries(order.by_supplier)) {
+        if (!map[supplier]) map[supplier] = {};
+        map[supplier][order.unit_name] = items;
+      }
+    }
+    return map;
+  }
+
+  // Texto de cópia por fornecedor (todas as unidades juntas)
+  function buildSupplierText(supplierName, unitMap) {
     const date = new Date().toLocaleDateString('pt-BR');
-    let text = '===========================================\n';
-    text += `PEDIDO DE COMPRA – BUONNA MASSA\nUnidade: ${order.unit_name}\nData: ${date}\n`;
-    text += '===========================================\n\n';
-    for (const [supplier, items] of Object.entries(order.by_supplier)) {
-      text += `FORNECEDOR: ${supplier}\n`;
-      let sub = 0;
+    let text = `PEDIDO – BUONNA MASSA\nFornecedor: ${supplierName}\nData: ${date}\n`;
+    text += '─────────────────────────────────\n';
+    let grandTotal = 0;
+    for (const [unitName, items] of Object.entries(unitMap)) {
+      if (orders.length > 1) text += `\n📍 ${unitName}\n`;
       for (const item of items) {
-        sub += item.total_price;
-        text += `  - ${item.name}: ${item.qty_to_buy} ${item.purchase_unit}`;
+        grandTotal += item.total_price;
+        text += `• ${item.name}: ${item.qty_to_buy} ${item.purchase_unit}`;
         if (item.unit_price > 0) text += ` × ${fmt(item.unit_price)} = ${fmt(item.total_price)}`;
         text += '\n';
       }
-      if (sub > 0) text += `  Subtotal: ${fmt(sub)}\n`;
-      text += '\n';
+      const sub = items.reduce((s, i) => s + i.total_price, 0);
+      if (sub > 0 && orders.length > 1) text += `  Subtotal ${unitName}: ${fmt(sub)}\n`;
     }
-    const total = order.items.reduce((s, i) => s + i.total_price, 0);
-    if (total > 0) text += `TOTAL GERAL: ${fmt(total)}\n`;
-    text += '===========================================';
+    text += '─────────────────────────────────\n';
+    if (grandTotal > 0) text += `TOTAL: ${fmt(grandTotal)}`;
     return text;
   }
 
-  const order = orders[activeUnit];
+  const supplierMap = buildSupplierMap();
+  const unitNames = orders.map((o) => o.unit_name);
 
   return (
     <div>
       <button onClick={onBack} className="text-sm text-brand-red hover:underline mb-4">← Voltar à cotação</button>
-      <h2 className="text-lg font-bold text-brand-red mb-4">Pedidos de Compra</h2>
-      <div className="flex gap-2 mb-4">
-        {orders.map((o, i) => (
-          <button key={o.unit_id} onClick={() => setActiveUnit(i)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${activeUnit === i ? 'bg-brand-red text-white' : 'bg-white border border-gray-300'}`}>
-            {o.unit_name}
-          </button>
-        ))}
-      </div>
-      {order && (
-        <div className="bg-white rounded-lg shadow p-4">
-          {Object.entries(order.by_supplier).map(([supplier, items]) => {
-            const sub = items.reduce((s, i) => s + i.total_price, 0);
-            return (
-              <div key={supplier} className="mb-5">
-                <h3 className="font-semibold text-gray-700 mb-2">📦 {supplier}</h3>
-                <div className="divide-y border rounded-lg">
-                  {items.map((item) => (
-                    <div key={item.product_id} className="flex items-center gap-3 p-2 text-sm">
-                      <span className="flex-1">{item.name}</span>
-                      <span className="text-gray-500">{item.qty_to_buy} {item.purchase_unit}</span>
-                      {item.unit_price > 0 && <>
-                        <span className="text-gray-400">× {fmt(item.unit_price)}</span>
-                        <span className="font-medium w-24 text-right">{fmt(item.total_price)}</span>
-                      </>}
+      <h2 className="text-lg font-bold text-brand-red mb-1">Pedidos de Compra</h2>
+      <p className="text-xs text-gray-400 mb-5">Clique em "Copiar" para enviar ao fornecedor via WhatsApp.</p>
+
+      <div className="space-y-5">
+        {Object.entries(supplierMap).map(([supplierName, unitMap]) => {
+          const grandTotal = Object.values(unitMap).flat().reduce((s, i) => s + i.total_price, 0);
+          const key = supplierName;
+          return (
+            <div key={key} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Cabeçalho do fornecedor */}
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
+                <span className="font-semibold text-gray-800">📦 {supplierName}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const text = buildSupplierText(supplierName, unitMap);
+                      navigator.clipboard.writeText(text).catch(() => {});
+                      setCopied((p) => ({ ...p, [key]: 'copied' }));
+                      setTimeout(() => setCopied((p) => ({ ...p, [key]: null })), 3000);
+                    }}
+                    className="border border-brand-red text-brand-red rounded px-3 py-1 text-xs font-medium hover:bg-brand-red hover:text-white transition-colors"
+                  >
+                    {copied[key] === 'copied' ? '✓ Copiado!' : '📋 Copiar'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const text = buildSupplierText(supplierName, unitMap);
+                      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                    }}
+                    className="bg-green-600 text-white rounded px-3 py-1 text-xs font-medium hover:opacity-90"
+                  >
+                    WhatsApp
+                  </button>
+                </div>
+              </div>
+
+              {/* Produtos — colunas por unidade se houver mais de uma */}
+              {unitNames.length > 1 ? (
+                <div className={`grid grid-cols-${unitNames.length} divide-x`} style={{ gridTemplateColumns: `repeat(${unitNames.length}, 1fr)` }}>
+                  {unitNames.map((unitName) => {
+                    const items = unitMap[unitName] || [];
+                    const sub = items.reduce((s, i) => s + i.total_price, 0);
+                    return (
+                      <div key={unitName}>
+                        <div className="px-3 py-2 bg-brand-red/5 border-b text-xs font-semibold text-brand-red text-center">
+                          {unitName}
+                        </div>
+                        {items.length === 0 ? (
+                          <p className="text-xs text-gray-400 text-center py-4">—</p>
+                        ) : (
+                          <div className="divide-y">
+                            {items.map((item) => (
+                              <div key={item.product_id} className="px-3 py-2">
+                                <div className="text-sm text-gray-800">{item.name}</div>
+                                <div className="flex items-center justify-between mt-0.5">
+                                  <span className="text-xs text-gray-500">{item.qty_to_buy} {item.purchase_unit}</span>
+                                  {item.unit_price > 0 && (
+                                    <span className="text-xs font-medium text-gray-700">{fmt(item.total_price)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {sub > 0 && (
+                          <div className="px-3 py-2 border-t text-right text-xs font-semibold text-gray-700">
+                            {fmt(sub)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Apenas 1 unidade — layout simples em linha
+                <div className="divide-y">
+                  {Object.values(unitMap).flat().map((item) => (
+                    <div key={item.product_id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                      <span className="flex-1 text-gray-800">{item.name}</span>
+                      <span className="text-gray-500 text-xs">{item.qty_to_buy} {item.purchase_unit}</span>
+                      {item.unit_price > 0 && (
+                        <>
+                          <span className="text-gray-400 text-xs">× {fmt(item.unit_price)}</span>
+                          <span className="font-medium w-20 text-right">{fmt(item.total_price)}</span>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
-                {sub > 0 && <p className="text-right text-sm font-semibold mt-1">{fmt(sub)}</p>}
-              </div>
-            );
-          })}
-          {order.items.some((i) => i.total_price > 0) && (
-            <p className="text-right font-bold text-brand-red border-t pt-2">
-              Total {order.unit_name}: {fmt(order.items.reduce((s, i) => s + i.total_price, 0))}
-            </p>
-          )}
-          <div className="flex gap-2 mt-4">
-            <button onClick={() => { navigator.clipboard.writeText(buildOrderText(order)); setCopied((p) => ({ ...p, [order.unit_id]: true })); }}
-              className="border border-brand-red text-brand-red rounded px-4 py-2 text-sm hover:bg-brand-red hover:text-white">
-              {copied[order.unit_id] ? 'Copiado!' : 'Copiar pedido'}
-            </button>
-            <button onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(buildOrderText(order))}`, '_blank')}
-              className="bg-green-600 text-white rounded px-4 py-2 text-sm hover:opacity-90">
-              Enviar via WhatsApp
-            </button>
-          </div>
-        </div>
-      )}
+              )}
+
+              {grandTotal > 0 && (
+                <div className="px-4 py-2 border-t text-right text-sm font-bold text-brand-red">
+                  Total: {fmt(grandTotal)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
