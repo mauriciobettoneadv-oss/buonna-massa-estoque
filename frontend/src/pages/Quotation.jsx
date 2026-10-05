@@ -250,7 +250,11 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
   const [pasting, setPasting] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [search, setSearch] = useState('');
   const sp = localPrices[supplier.id] || {};
+  const filteredProducts = products.filter((p) =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   async function handleCopyLink() {
     setGeneratingLink(true);
@@ -397,7 +401,21 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
         </div>
       )}
 
-      {products.map((p) => {
+      <div className="px-3 py-2 border-b">
+        <input
+          type="text"
+          placeholder="🔍 Buscar produto..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 w-full text-sm focus:outline-none focus:border-brand-red"
+        />
+      </div>
+
+      {filteredProducts.length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-4">Nenhum produto encontrado.</p>
+      )}
+
+      {filteredProducts.map((p) => {
         const best = bestForProduct(data.prices, data.suppliers, p.product_id);
         const isWinner = best?.supplierId === supplier.id && Number(sp[p.product_id] || 0) > 0;
         const totalQty = Object.values(p.qtys).reduce((s, q) => s + q, 0);

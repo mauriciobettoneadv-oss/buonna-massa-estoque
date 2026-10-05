@@ -128,6 +128,10 @@ export default function Counting() {
   }
 
   const statusInfo = COUNT_STATUS_LABEL[countStatus] || COUNT_STATUS_LABEL.aberta;
+  const [search, setSearch] = useState('');
+  const filteredItems = items.filter((item) =>
+    item.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -166,8 +170,23 @@ export default function Counting() {
       )}
 
       {!loading && items.length > 0 && (
+        <div className="mb-3">
+          <input
+            type="text"
+            placeholder="🔍 Buscar produto..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="border border-gray-300 rounded-lg px-3 py-2 w-full text-sm focus:outline-none focus:border-brand-red"
+          />
+        </div>
+      )}
+
+      {!loading && items.length > 0 && (
         <div className="bg-white rounded-lg shadow divide-y mb-4">
-          {items.map((item) => (
+          {filteredItems.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4">Nenhum produto encontrado.</p>
+          )}
+          {filteredItems.map((item) => (
             <div key={item.product_id} className="flex items-center gap-3 p-3">
               <span className="text-lg w-6">{statusIcon(item)}</span>
               <span className="flex-1 text-sm">{item.name}</span>
@@ -180,7 +199,7 @@ export default function Counting() {
                   value={item.current_stock}
                   disabled={isReadOnly}
                   onChange={(e) => updateLocalItem(item.product_id, 'current_stock', e.target.value)}
-                  onBlur={() => saveItem(items.find((i) => i.product_id === item.product_id))}
+                  onBlur={() => saveItem(item)}
                   className="w-24 border border-gray-300 rounded px-2 py-1 text-center disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
@@ -193,7 +212,7 @@ export default function Counting() {
                   value={item.qty_to_buy}
                   disabled={isReadOnly}
                   onChange={(e) => updateLocalItem(item.product_id, 'qty_to_buy', e.target.value)}
-                  onBlur={() => saveItem(items.find((i) => i.product_id === item.product_id))}
+                  onBlur={() => saveItem(item)}
                   className="w-24 border border-gray-300 rounded px-2 py-1 text-center disabled:bg-gray-100 disabled:text-gray-500"
                 />
               </div>
