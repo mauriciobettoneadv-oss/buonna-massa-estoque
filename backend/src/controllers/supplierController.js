@@ -29,19 +29,19 @@ async function getSupplier(req, res) {
 }
 
 async function createSupplier(req, res) {
-  const { name, categories, phone, email, min_order, delivery_days, notes } = req.body;
+  const { name, categories, phone, email, min_order, delivery_days, delivery_cities, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome é obrigatório.' });
   const result = await pool.query(
-    `INSERT INTO suppliers (name, categories, phone, email, min_order, delivery_days, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [name, categories || [], phone, email, min_order || 0, delivery_days || [], notes]
+    `INSERT INTO suppliers (name, categories, phone, email, min_order, delivery_days, delivery_cities, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [name, categories || [], phone, email, min_order || 0, delivery_days || [], delivery_cities || [], notes]
   );
   res.status(201).json(result.rows[0]);
 }
 
 async function updateSupplier(req, res) {
   const { id } = req.params;
-  const { name, categories, phone, email, min_order, delivery_days, notes } = req.body;
+  const { name, categories, phone, email, min_order, delivery_days, delivery_cities, notes } = req.body;
   const result = await pool.query(
     `UPDATE suppliers SET
        name = COALESCE($1, name),
@@ -50,9 +50,10 @@ async function updateSupplier(req, res) {
        email = COALESCE($4, email),
        min_order = COALESCE($5, min_order),
        delivery_days = COALESCE($6, delivery_days),
-       notes = COALESCE($7, notes)
-     WHERE id = $8 RETURNING *`,
-    [name, categories, phone, email, min_order, delivery_days, notes, id]
+       delivery_cities = COALESCE($7, delivery_cities),
+       notes = COALESCE($8, notes)
+     WHERE id = $9 RETURNING *`,
+    [name, categories, phone, email, min_order, delivery_days, delivery_cities, notes, id]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
   res.json(result.rows[0]);

@@ -19,7 +19,10 @@ export default function Navbar() {
         <span className="font-bold">Buonna Massa</span>
         <Link to="/contagem" className="text-sm hover:underline">Contagem</Link>
         {(isOwner || isGerente) && (
-          <Link to="/produtos" className="text-sm hover:underline">Produtos</Link>
+          <>
+            <Link to="/produtos" className="text-sm hover:underline">Produtos</Link>
+            <Link to="/historico" className="text-sm hover:underline">Histórico</Link>
+          </>
         )}
         {isOwner && (
           <>

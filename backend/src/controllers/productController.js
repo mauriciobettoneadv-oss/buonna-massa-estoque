@@ -14,7 +14,7 @@ async function listProducts(req, res) {
 }
 
 async function createProduct(req, res) {
-  const { name, category, unit_measure, purchase_unit, min_stock, supplier } = req.body;
+  const { name, category, unit_measure, purchase_unit, min_stock, supplier, box_qty, box_unit_weight, price_unit } = req.body;
 
   if (!name || !category || !unit_measure || !purchase_unit || min_stock === undefined) {
     return res.status(400).json({
@@ -26,16 +26,17 @@ async function createProduct(req, res) {
   }
 
   const result = await pool.query(
-    `INSERT INTO products (name, category, unit_measure, purchase_unit, min_stock, supplier)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [name, category, unit_measure, purchase_unit, min_stock, supplier || null]
+    `INSERT INTO products (name, category, unit_measure, purchase_unit, min_stock, supplier, box_qty, box_unit_weight, price_unit)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [name, category, unit_measure, purchase_unit, min_stock, supplier || null,
+     box_qty || null, box_unit_weight || null, price_unit || null]
   );
   res.status(201).json(result.rows[0]);
 }
 
 async function updateProduct(req, res) {
   const { id } = req.params;
-  const { name, category, unit_measure, purchase_unit, min_stock, supplier } = req.body;
+  const { name, category, unit_measure, purchase_unit, min_stock, supplier, box_qty, box_unit_weight, price_unit } = req.body;
 
   if (category && !CATEGORIES.includes(category)) {
     return res.status(400).json({ error: 'Categoria inválida.' });
@@ -48,9 +49,13 @@ async function updateProduct(req, res) {
        unit_measure = COALESCE($3, unit_measure),
        purchase_unit = COALESCE($4, purchase_unit),
        min_stock = COALESCE($5, min_stock),
-       supplier = COALESCE($6, supplier)
-     WHERE id = $7 RETURNING *`,
-    [name, category, unit_measure, purchase_unit, min_stock, supplier, id]
+       supplier = COALESCE($6, supplier),
+       box_qty = $7,
+       box_unit_weight = $8,
+       price_unit = $9
+     WHERE id = $10 RETURNING *`,
+    [name, category, unit_measure, purchase_unit, min_stock, supplier,
+     box_qty || null, box_unit_weight || null, price_unit || null, id]
   );
 
   if (result.rows.length === 0) {

@@ -4,8 +4,11 @@ import request from '../api/client';
 
 const CATEGORIES = ['Laticínios', 'Embutidos', 'Bebidas', 'Limpeza', 'Descartáveis', 'Massas', 'Molhos', 'Outros'];
 
+const PRICE_UNITS = ['Kilo', 'Bisnaga', 'Lata', 'Fardo', 'Balde', 'Caixa', 'Unidade'];
+
 const emptyForm = {
   name: '', category: CATEGORIES[0], unit_measure: '', purchase_unit: '', min_stock: '', supplier: '',
+  box_qty: '', box_unit_weight: '', price_unit: '',
 };
 
 export default function Products() {
@@ -28,7 +31,13 @@ export default function Products() {
     e.preventDefault();
     setError('');
     try {
-      const body = { ...form, min_stock: Number(form.min_stock) };
+      const body = {
+        ...form,
+        min_stock: Number(form.min_stock),
+        box_qty: form.box_qty !== '' ? Number(form.box_qty) : null,
+        box_unit_weight: form.box_unit_weight !== '' ? Number(form.box_unit_weight) : null,
+        price_unit: form.price_unit || null,
+      };
       if (editingId) {
         await request(`/products/${editingId}`, { method: 'PUT', token, body });
       } else {
@@ -51,6 +60,9 @@ export default function Products() {
       purchase_unit: product.purchase_unit,
       min_stock: product.min_stock,
       supplier: product.supplier || '',
+      box_qty: product.box_qty ?? '',
+      box_unit_weight: product.box_unit_weight ?? '',
+      price_unit: product.price_unit || '',
     });
   }
 
@@ -112,6 +124,53 @@ export default function Products() {
           className="border border-gray-300 rounded px-3 py-2 col-span-2"
         />
 
+        {/* Identificação da caixa */}
+        <div className="col-span-2 border-t pt-3 mt-1">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Composição da Caixa (opcional)</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Qtd por caixa</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                placeholder="ex: 6"
+                value={form.box_qty}
+                onChange={(e) => setForm({ ...form, box_qty: e.target.value })}
+                className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Peso/vol por unidade</label>
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                placeholder="ex: 4 (kg)"
+                value={form.box_unit_weight}
+                onChange={(e) => setForm({ ...form, box_unit_weight: e.target.value })}
+                className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Preço por</label>
+              <select
+                value={form.price_unit}
+                onChange={(e) => setForm({ ...form, price_unit: e.target.value })}
+                className="border border-gray-300 rounded px-3 py-2 w-full text-sm"
+              >
+                <option value="">— selecione —</option>
+                {PRICE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+          {form.box_qty && form.box_unit_weight && (
+            <p className="text-xs text-gray-400 mt-1">
+              Caixa com {form.box_qty} × {form.box_unit_weight} = {(Number(form.box_qty) * Number(form.box_unit_weight)).toFixed(3)} por caixa
+            </p>
+          )}
+        </div>
+
         {error && <p className="text-red-600 text-sm col-span-2">{error}</p>}
 
         <div className="col-span-2 flex gap-2">
@@ -137,6 +196,14 @@ export default function Products() {
               <p className={p.active ? '' : 'line-through text-gray-400'}>
                 {p.name} — {p.category} — conta em {p.unit_measure}, compra em {p.purchase_unit} — mín: {p.min_stock}
               </p>
+              {(p.box_qty || p.price_unit) && (
+                <p className="text-xs text-blue-600 mt-0.5">
+                  {p.box_qty && p.box_unit_weight
+                    ? `📦 Caixa: ${p.box_qty} un × ${p.box_unit_weight} = ${(Number(p.box_qty) * Number(p.box_unit_weight)).toFixed(3)}`
+                    : p.box_qty ? `📦 ${p.box_qty} un/caixa` : ''}
+                  {p.price_unit ? ` · Preço por ${p.price_unit}` : ''}
+                </p>
+              )}
               {p.supplier && <p className="text-xs text-gray-400">{p.supplier}</p>}
             </div>
             <button onClick={() => startEdit(p)} className="text-sm text-brand-red hover:underline">Editar</button>

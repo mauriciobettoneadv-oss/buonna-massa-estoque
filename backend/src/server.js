@@ -73,6 +73,21 @@ async function startServer() {
         ADD COLUMN IF NOT EXISTS access_token TEXT UNIQUE,
         ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ
     `);
+    await pool.query(`
+      ALTER TABLE products
+        ADD COLUMN IF NOT EXISTS box_qty         NUMERIC,
+        ADD COLUMN IF NOT EXISTS box_unit_weight NUMERIC,
+        ADD COLUMN IF NOT EXISTS price_unit      TEXT
+    `);
+    await pool.query(`
+      ALTER TABLE suppliers
+        ADD COLUMN IF NOT EXISTS delivery_cities TEXT[] DEFAULT '{}'
+    `);
+    await pool.query(`
+      ALTER TABLE quotation_prices
+        ADD COLUMN IF NOT EXISTS notes     TEXT,
+        ADD COLUMN IF NOT EXISTS alt_brand TEXT
+    `);
     console.log('[startup] Colunas de supplier token verificadas.');
   } catch (e) {
     console.error('[startup] Erro ao verificar colunas de supplier token:', e.message);

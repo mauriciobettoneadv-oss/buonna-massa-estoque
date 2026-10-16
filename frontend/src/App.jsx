@@ -10,6 +10,7 @@ import Users from './pages/Users';
 import Suppliers from './pages/Suppliers';
 import NotificationSettings from './pages/NotificationSettings';
 import SupplierQuotation from './pages/SupplierQuotation';
+import CountHistory from './pages/CountHistory';
 
 function App() {
   return (
@@ -27,6 +28,11 @@ function App() {
         {/* Dono/proprietario/gerente: produtos */}
         <Route element={<ProtectedRoute roles={['dono', 'proprietario', 'gerente']} />}>
           <Route path="/produtos" element={<Products />} />
+        </Route>
+
+        {/* Dono/proprietario/gerente: histórico */}
+        <Route element={<ProtectedRoute roles={['dono', 'proprietario', 'gerente']} />}>
+          <Route path="/historico" element={<CountHistory />} />
         </Route>
 
         {/* Somente dono/proprietario */}

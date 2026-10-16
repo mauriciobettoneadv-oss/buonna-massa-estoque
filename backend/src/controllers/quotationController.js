@@ -83,7 +83,7 @@ async function getQuotation(req, res) {
 
   // Prices
   const prices = await pool.query(
-    `SELECT qp.supplier_id, qp.product_id, qp.unit_price
+    `SELECT qp.supplier_id, qp.product_id, qp.unit_price, qp.notes, qp.alt_brand
      FROM quotation_prices qp
      JOIN quotation_suppliers qs ON qs.id = qp.supplier_id
      WHERE qs.quotation_id = $1`,
@@ -147,14 +147,14 @@ async function deleteSupplier(req, res) {
 
 async function savePrices(req, res) {
   const { supplierId } = req.params;
-  const { prices } = req.body; // [{ product_id, unit_price }]
+  const { prices } = req.body; // [{ product_id, unit_price, notes, alt_brand }]
 
-  for (const { product_id, unit_price } of prices) {
+  for (const { product_id, unit_price, notes, alt_brand } of prices) {
     await pool.query(
-      `INSERT INTO quotation_prices (supplier_id, product_id, unit_price)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (supplier_id, product_id) DO UPDATE SET unit_price = $3`,
-      [supplierId, product_id, unit_price || 0]
+      `INSERT INTO quotation_prices (supplier_id, product_id, unit_price, notes, alt_brand)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (supplier_id, product_id) DO UPDATE SET unit_price = $3, notes = $4, alt_brand = $5`,
+      [supplierId, product_id, unit_price || 0, notes || null, alt_brand || null]
     );
   }
 

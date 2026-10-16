@@ -6,7 +6,7 @@ const API = import.meta.env.VITE_API_URL || '';
 export default function SupplierQuotation() {
   const { token } = useParams();
   const [data, setData] = useState(null);
-  const [prices, setPrices] = useState({}); // product_id -> { value, unavailable }
+  const [prices, setPrices] = useState({}); // product_id -> { value, unavailable, notes, alt_brand }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -28,6 +28,8 @@ export default function SupplierQuotation() {
           initial[p.product_id] = {
             value: formatted,
             unavailable: p.current_price === 0 && p.current_price !== null,
+            notes: p.current_notes || '',
+            alt_brand: p.current_alt_brand || '',
           };
         }
         setPrices(initial);
@@ -37,18 +39,20 @@ export default function SupplierQuotation() {
   }, [token]);
 
   function handlePrice(productId, value) {
-    // Remove tudo que não é dígito
     const digits = value.replace(/\D/g, '');
-    // Formata como moeda: últimos 2 dígitos são centavos
     const cents = parseInt(digits || '0', 10);
     const formatted = (cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     setPrices((prev) => ({ ...prev, [productId]: { ...prev[productId], value: formatted, unavailable: false } }));
   }
 
+  function handleField(productId, field, value) {
+    setPrices((prev) => ({ ...prev, [productId]: { ...prev[productId], [field]: value } }));
+  }
+
   function toggleUnavailable(productId) {
     setPrices((prev) => ({
       ...prev,
-      [productId]: { value: '', unavailable: !prev[productId]?.unavailable },
+      [productId]: { ...prev[productId], value: '', unavailable: !prev[productId]?.unavailable },
     }));
   }
 
@@ -58,12 +62,13 @@ export default function SupplierQuotation() {
     try {
       const payload = data.products.map((p) => {
         const entry = prices[p.product_id] || {};
-        // Converte "1.234,56" → 1234.56
         const raw = (entry.value || '0').replace(/\./g, '').replace(',', '.');
         return {
           product_id: p.product_id,
           unit_price: parseFloat(raw) || 0,
           unavailable: !!entry.unavailable,
+          notes: entry.notes || null,
+          alt_brand: entry.alt_brand || null,
         };
       });
 
@@ -159,6 +164,11 @@ export default function SupplierQuotation() {
               <div style={{ fontWeight: '600', fontSize: '0.875rem', color: '#1a1916', marginBottom: '2px' }}>{product.name}</div>
               <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '8px' }}>
                 Unidade: {product.purchase_unit} · Qtd necessária: {product.total_qty} {product.purchase_unit}
+                {product.price_unit && (
+                  <span style={{ marginLeft: '6px', color: '#c0392b', fontWeight: '600' }}>
+                    · Informar preço por {product.price_unit}
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
@@ -201,6 +211,44 @@ export default function SupplierQuotation() {
                   {entry.unavailable ? '✓ Sem estoque' : 'Sem estoque'}
                 </button>
               </div>
+              {/* Observação */}
+              <input
+                type="text"
+                placeholder="Observação (ex: só tem 5 unidades)"
+                value={entry.notes || ''}
+                onChange={(e) => handleField(product.product_id, 'notes', e.target.value)}
+                style={{
+                  marginTop: '6px',
+                  width: '100%',
+                  border: '1.5px solid #e2e0db',
+                  borderRadius: '7px',
+                  padding: '7px 10px',
+                  fontSize: '0.8rem',
+                  fontFamily: 'inherit',
+                  color: '#1a1916',
+                  background: '#fff',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {/* Marca alternativa */}
+              <input
+                type="text"
+                placeholder="Outra marca disponível (opcional)"
+                value={entry.alt_brand || ''}
+                onChange={(e) => handleField(product.product_id, 'alt_brand', e.target.value)}
+                style={{
+                  marginTop: '5px',
+                  width: '100%',
+                  border: '1.5px solid #e2e0db',
+                  borderRadius: '7px',
+                  padding: '7px 10px',
+                  fontSize: '0.8rem',
+                  fontFamily: 'inherit',
+                  color: '#1a1916',
+                  background: '#fff',
+                  boxSizing: 'border-box',
+                }}
+              />
             </div>
           );
         })}

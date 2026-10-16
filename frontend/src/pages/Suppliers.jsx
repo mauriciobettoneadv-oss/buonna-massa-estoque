@@ -12,6 +12,7 @@ const EMPTY_SUPPLIER = {
   email: '',
   min_order: '',
   delivery_days: [],
+  delivery_cities: [],
   notes: '',
 };
 
@@ -25,6 +26,7 @@ export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
   const [selected, setSelected] = useState(null); // { supplier, prices }
   const [products, setProducts] = useState([]);
+  const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_SUPPLIER);
@@ -43,9 +45,11 @@ export default function Suppliers() {
     Promise.all([
       request('/suppliers', { token }),
       request('/products', { token }),
-    ]).then(([s, p]) => {
+      request('/units', { token }),
+    ]).then(([s, p, u]) => {
       setSuppliers(s);
       setProducts(p.filter ? p.filter(x => x.active !== false) : p);
+      setUnits(u);
       setLoading(false);
     });
   }, [token]);
@@ -76,6 +80,7 @@ export default function Suppliers() {
       const body = {
         ...form,
         min_order: form.min_order !== '' ? Number(form.min_order) : 0,
+        delivery_cities: form.delivery_cities || [],
       };
       const created = await request('/suppliers', { method: 'POST', body, token });
       setSuppliers([...suppliers, { ...created, product_count: '0' }]);
@@ -98,6 +103,7 @@ export default function Suppliers() {
         email: selected.supplier.email,
         min_order: selected.supplier.min_order,
         delivery_days: selected.supplier.delivery_days,
+        delivery_cities: selected.supplier.delivery_cities || [],
         notes: selected.supplier.notes,
       };
       const updated = await request(`/suppliers/${selected.supplier.id}`, { method: 'PUT', body, token });
@@ -266,6 +272,21 @@ export default function Suppliers() {
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Cidades de entrega</label>
+                <div className="flex flex-wrap gap-2">
+                  {units.map(u => (
+                    <label key={u.id} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(sup.delivery_cities || []).includes(u.name)}
+                        onChange={() => updateSupplierField('delivery_cities', toggleItem(sup.delivery_cities || [], u.name))}
+                      />
+                      {u.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                 <textarea
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -327,6 +348,16 @@ export default function Suppliers() {
                   <div className="flex flex-wrap gap-1">
                     {sup.delivery_days.map(d => (
                       <span key={d} className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{d}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {sup.delivery_cities?.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-gray-500 mb-1">Cidades de entrega</p>
+                  <div className="flex flex-wrap gap-1">
+                    {sup.delivery_cities.map(c => (
+                      <span key={c} className="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full">📍 {c}</span>
                     ))}
                   </div>
                 </div>
@@ -475,6 +506,21 @@ export default function Suppliers() {
             </div>
           </div>
           <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Cidades de entrega</label>
+            <div className="flex flex-wrap gap-3">
+              {units.map(u => (
+                <label key={u.id} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(form.delivery_cities || []).includes(u.name)}
+                    onChange={() => setForm({ ...form, delivery_cities: toggleItem(form.delivery_cities || [], u.name) })}
+                  />
+                  {u.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
             <textarea
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -521,10 +567,13 @@ export default function Suppliers() {
                     <span key={c} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c}</span>
                   ))}
                 </div>
-                <div className="flex gap-4 mt-2 text-sm text-gray-500">
+                <div className="flex gap-4 mt-2 text-sm text-gray-500 flex-wrap">
                   {s.phone && <span>{s.phone}</span>}
                   {s.delivery_days?.length > 0 && (
                     <span>Entrega: {s.delivery_days.join(', ')}</span>
+                  )}
+                  {s.delivery_cities?.length > 0 && (
+                    <span>📍 {s.delivery_cities.join(', ')}</span>
                   )}
                   {s.min_order > 0 && (
                     <span>Mín: R$ {Number(s.min_order).toFixed(2)}</span>

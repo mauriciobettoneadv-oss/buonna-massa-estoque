@@ -62,7 +62,7 @@ async function getQuotationByToken(req, res) {
 
   // Preços já preenchidos por este fornecedor
   const prices = await pool.query(
-    `SELECT product_id, unit_price
+    `SELECT product_id, unit_price, notes, alt_brand
      FROM quotation_prices
      WHERE supplier_id = $1`,
     [supplier.id]
@@ -70,7 +70,18 @@ async function getQuotationByToken(req, res) {
 
   const priceMap = {};
   for (const p of prices.rows) {
-    priceMap[p.product_id] = Number(p.unit_price);
+    priceMap[p.product_id] = { unit_price: Number(p.unit_price), notes: p.notes, alt_brand: p.alt_brand };
+  }
+
+  // Busca price_unit dos produtos
+  const productIds = products.rows.map((p) => p.product_id);
+  let priceUnitMap = {};
+  if (productIds.length > 0) {
+    const pu = await pool.query(
+      `SELECT id, price_unit FROM products WHERE id = ANY($1::int[])`,
+      [productIds]
+    );
+    for (const row of pu.rows) priceUnitMap[row.id] = row.price_unit;
   }
 
   res.json({
@@ -80,8 +91,11 @@ async function getQuotationByToken(req, res) {
       product_id: p.product_id,
       name: p.name,
       purchase_unit: p.purchase_unit,
+      price_unit: priceUnitMap[p.product_id] || null,
       total_qty: Number(p.total_qty),
-      current_price: priceMap[p.product_id] ?? null,
+      current_price: priceMap[p.product_id]?.unit_price ?? null,
+      current_notes: priceMap[p.product_id]?.notes ?? null,
+      current_alt_brand: priceMap[p.product_id]?.alt_brand ?? null,
     })),
   });
 }
@@ -110,13 +124,13 @@ async function saveQuotationByToken(req, res) {
 
   const supplierId = supplier.id;
 
-  for (const { product_id, unit_price, unavailable } of prices) {
+  for (const { product_id, unit_price, unavailable, notes, alt_brand } of prices) {
     const price = unavailable ? 0 : Number(unit_price) || 0;
     await pool.query(
-      `INSERT INTO quotation_prices (supplier_id, product_id, unit_price)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (supplier_id, product_id) DO UPDATE SET unit_price = $3`,
-      [supplierId, product_id, price]
+      `INSERT INTO quotation_prices (supplier_id, product_id, unit_price, notes, alt_brand)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (supplier_id, product_id) DO UPDATE SET unit_price = $3, notes = $4, alt_brand = $5`,
+      [supplierId, product_id, price, notes || null, alt_brand || null]
     );
   }
 
