@@ -25,7 +25,15 @@ async function getSupplier(req, res) {
      ORDER BY p.category, p.name`,
     [id]
   );
-  res.json({ supplier: s.rows[0], prices: prices.rows });
+  const contacts = await pool.query(
+    `SELECT suc.*, u.name AS unit_name
+     FROM supplier_unit_contacts suc
+     JOIN units u ON u.id = suc.unit_id
+     WHERE suc.supplier_id = $1
+     ORDER BY u.id`,
+    [id]
+  );
+  res.json({ supplier: s.rows[0], prices: prices.rows, contacts: contacts.rows });
 }
 
 async function createSupplier(req, res) {
@@ -110,4 +118,19 @@ async function getQuotationPrices(req, res) {
   res.json(prices.rows);
 }
 
-module.exports = { listSuppliers, getSupplier, createSupplier, updateSupplier, toggleActive, savePrice, deletePrice, getQuotationPrices };
+async function saveUnitContact(req, res) {
+  const { id } = req.params; // supplier_id
+  const { unit_id, contact_name, phone, email, delivery_days } = req.body;
+  if (!unit_id) return res.status(400).json({ error: 'unit_id é obrigatório.' });
+  const result = await pool.query(
+    `INSERT INTO supplier_unit_contacts (supplier_id, unit_id, contact_name, phone, email, delivery_days)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (supplier_id, unit_id) DO UPDATE SET
+       contact_name = $3, phone = $4, email = $5, delivery_days = $6
+     RETURNING *`,
+    [id, unit_id, contact_name || null, phone || null, email || null, delivery_days || []]
+  );
+  res.json(result.rows[0]);
+}
+
+module.exports = { listSuppliers, getSupplier, createSupplier, updateSupplier, toggleActive, savePrice, deletePrice, getQuotationPrices, saveUnitContact };

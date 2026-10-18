@@ -10,7 +10,7 @@ import request from '../api/client';
 
 export default function Report() {
   const { token } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const countId = searchParams.get('countId');
   const [items, setItems] = useState([]);
   const [countInfo, setCountInfo] = useState(null);
@@ -18,10 +18,23 @@ export default function Report() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalized, setFinalized] = useState(false);
 
   useEffect(() => {
-    if (!countId) return;
+    if (!countId) {
+      setHistoryLoading(true);
+      request('/stock-counts/history', { token })
+        .then(setHistory)
+        .catch(err => setError(err.message))
+        .finally(() => setHistoryLoading(false));
+      return;
+    }
     setLoading(true);
+    setFinalized(false);
+    setReportText('');
     request(`/stock-counts/${countId}/report`, { token })
       .then((data) => {
         setCountInfo(data.count);
@@ -81,6 +94,21 @@ export default function Report() {
     setCopied(false);
   }
 
+  async function finalizeCount() {
+    setFinalizing(true);
+    setError('');
+    try {
+      await request(`/stock-counts/${countId}/finalize`, { method: 'POST', token });
+      setFinalized(true);
+      setCountInfo(ci => ci ? { ...ci, status: 'finalizada' } : ci);
+      generateReport();
+    } catch (err) {
+      setError(err.message || 'Erro ao finalizar contagem.');
+    } finally {
+      setFinalizing(false);
+    }
+  }
+
   async function copyToClipboard() {
     await navigator.clipboard.writeText(reportText);
     setCopied(true);
@@ -92,19 +120,100 @@ export default function Report() {
   }
 
   if (!countId) {
-    return <p className="p-4 text-gray-500">Nenhuma contagem selecionada. Finalize uma contagem primeiro.</p>;
+    const saved = history.filter(h => h.status === 'salva');
+    const finalized = history.filter(h => h.status === 'finalizada');
+    return (
+      <div className="max-w-3xl mx-auto p-4">
+        <h1 className="text-xl font-bold text-brand-red mb-4">Relatório de Compras</h1>
+        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+        {historyLoading && <p className="text-gray-500">Carregando contagens...</p>}
+
+        {saved.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-gray-700 mb-2">Contagens aguardando finalização</h2>
+            <div className="space-y-2">
+              {saved.map(c => (
+                <div
+                  key={c.id}
+                  className="bg-white border border-yellow-300 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:border-brand-red hover:shadow-sm transition-all"
+                  onClick={() => setSearchParams({ countId: c.id })}
+                >
+                  <div>
+                    <p className="font-medium text-gray-800">{c.unit_name}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.items_to_buy} itens a comprar
+                      {c.saved_by_name && ` · salva por ${c.saved_by_name}`}
+                    </p>
+                  </div>
+                  <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full">Salva</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {finalized.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-gray-700 mb-2">Contagens finalizadas</h2>
+            <div className="space-y-2">
+              {finalized.map(c => (
+                <div
+                  key={c.id}
+                  className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:border-brand-red hover:shadow-sm transition-all"
+                  onClick={() => setSearchParams({ countId: c.id })}
+                >
+                  <div>
+                    <p className="font-medium text-gray-800">{c.unit_name}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.items_to_buy} itens
+                      {c.finalized_by_name && ` · finalizada por ${c.finalized_by_name}`}
+                    </p>
+                  </div>
+                  <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">Finalizada</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!historyLoading && saved.length === 0 && finalized.length === 0 && (
+          <p className="text-gray-400 text-center py-8">Nenhuma contagem salva ou finalizada encontrada.</p>
+        )}
+      </div>
+    );
   }
 
   return (
     <div className="max-w-3xl mx-auto p-4">
+      <button onClick={() => setSearchParams({})} className="text-sm text-brand-red hover:underline mb-4 flex items-center gap-1">
+        ← Voltar para lista
+      </button>
       <h1 className="text-xl font-bold text-brand-red mb-4">Validação e Relatório de Compras</h1>
       {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
       {loading && <p className="text-gray-500 mb-4">Carregando...</p>}
 
       {countInfo && (
-        <p className="text-sm text-gray-600 mb-3">
-          Unidade: <strong>{countInfo.unit_name}</strong> — {new Date(countInfo.created_at).toLocaleDateString('pt-BR')} — {items.length} itens a comprar
-        </p>
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <p className="text-sm text-gray-600">
+            Unidade: <strong>{countInfo.unit_name}</strong> — {new Date(countInfo.created_at).toLocaleDateString('pt-BR')} — {items.length} itens a comprar
+            {' · '}
+            <span className={`font-medium ${countInfo.status === 'finalizada' ? 'text-green-600' : 'text-yellow-600'}`}>
+              {countInfo.status === 'finalizada' ? 'Finalizada' : 'Salva'}
+            </span>
+          </p>
+          {countInfo.status === 'salva' && (
+            <button
+              onClick={finalizeCount}
+              disabled={finalizing}
+              className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {finalizing ? 'Finalizando...' : '✓ Finalizar Contagem'}
+            </button>
+          )}
+          {finalized && (
+            <span className="text-green-600 text-sm font-medium">Contagem finalizada!</span>
+          )}
+        </div>
       )}
 
       <div className="bg-white rounded-lg shadow divide-y mb-4">

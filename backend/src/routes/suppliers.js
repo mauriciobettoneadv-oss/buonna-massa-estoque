@@ -13,4 +13,5 @@ router.put('/:id', asyncHandler(c.updateSupplier));
 router.patch('/:id/active', asyncHandler(c.toggleActive));
 router.post('/:id/prices', asyncHandler(c.savePrice));
 router.delete('/:id/prices/:priceId', asyncHandler(c.deletePrice));
+router.post('/:id/unit-contacts', asyncHandler(c.saveUnitContact));
 module.exports = router;

@@ -84,9 +84,32 @@ async function startServer() {
         ADD COLUMN IF NOT EXISTS delivery_cities TEXT[] DEFAULT '{}'
     `);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS supplier_unit_contacts (
+        id SERIAL PRIMARY KEY,
+        supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+        unit_id INTEGER NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+        contact_name TEXT,
+        phone TEXT,
+        email TEXT,
+        delivery_days TEXT[] DEFAULT '{}',
+        UNIQUE(supplier_id, unit_id)
+      )
+    `);
+    await pool.query(`
       ALTER TABLE quotation_prices
         ADD COLUMN IF NOT EXISTS notes     TEXT,
         ADD COLUMN IF NOT EXISTS alt_brand TEXT
+    `);
+    await pool.query(`
+      ALTER TABLE notification_settings
+        ADD COLUMN IF NOT EXISTS quotation_deadline_hour INTEGER DEFAULT 18,
+        ADD COLUMN IF NOT EXISTS auto_send_quotation BOOLEAN DEFAULT TRUE,
+        ADD COLUMN IF NOT EXISTS quotation_msg_template TEXT DEFAULT 'Olá, {contact_name}! 🍕\nSou da Pizzaria Buonna Massa – {unit_name}.\nSegue o link para preenchimento da cotação desta semana:\n{link}\nAguardamos o preenchimento até {deadline}.\nObrigado!',
+        ADD COLUMN IF NOT EXISTS quotation_reminder_template TEXT DEFAULT '⚠️ Lembrete – Pizzaria Buonna Massa\n{contact_name}, ainda não recebemos sua cotação.\nAcesse o link para preencher: {link}\nPrazo: hoje às {deadline_hour}h.'
+    `);
+    await pool.query(`
+      ALTER TABLE quotations
+        ADD COLUMN IF NOT EXISTS all_filled_notified BOOLEAN DEFAULT FALSE
     `);
     console.log('[startup] Colunas de supplier token verificadas.');
   } catch (e) {

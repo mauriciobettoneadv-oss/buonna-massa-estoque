@@ -34,6 +34,9 @@ export default function Suppliers() {
   const [savingInfo, setSavingInfo] = useState(false);
   const [priceEdits, setPriceEdits] = useState({}); // product_id -> value string
   const [savingPrice, setSavingPrice] = useState({}); // product_id -> bool
+  const [unitContacts, setUnitContacts] = useState({}); // unit_id -> contact fields
+  const [savingContact, setSavingContact] = useState({}); // unit_id -> bool
+  const [expandedUnit, setExpandedUnit] = useState(null);
   const [error, setError] = useState('');
 
   const loadSuppliers = useCallback(async () => {
@@ -61,7 +64,14 @@ export default function Suppliers() {
     const pe = {};
     data.prices.forEach(p => { pe[p.product_id] = String(p.unit_price); });
     setPriceEdits(pe);
+    // Pre-populate unit contacts
+    const uc = {};
+    (data.contacts || []).forEach(c => {
+      uc[c.unit_id] = { contact_name: c.contact_name || '', phone: c.phone || '', email: c.email || '', delivery_days: c.delivery_days || [] };
+    });
+    setUnitContacts(uc);
     setEditInfo(false);
+    setExpandedUnit(null);
     setView('detail');
   }
 
@@ -154,6 +164,29 @@ export default function Suppliers() {
       });
     } finally {
       setSavingPrice(s => ({ ...s, [productId]: false }));
+    }
+  }
+
+  function updateUnitContact(unitId, field, value) {
+    setUnitContacts(uc => ({
+      ...uc,
+      [unitId]: { ...(uc[unitId] || {}), [field]: value },
+    }));
+  }
+
+  async function handleSaveUnitContact(unitId) {
+    setSavingContact(s => ({ ...s, [unitId]: true }));
+    try {
+      const contact = unitContacts[unitId] || {};
+      await request(`/suppliers/${selected.supplier.id}/unit-contacts`, {
+        method: 'POST',
+        body: { unit_id: unitId, ...contact },
+        token,
+      });
+    } catch (err) {
+      setError(err.message || 'Erro ao salvar contato.');
+    } finally {
+      setSavingContact(s => ({ ...s, [unitId]: false }));
     }
   }
 
@@ -368,8 +401,114 @@ export default function Suppliers() {
                   <p className="text-gray-700">{sup.notes}</p>
                 </div>
               )}
+              {(selected.contacts || []).length > 0 && (
+                <div className="col-span-4">
+                  <p className="text-gray-500 mb-1">Contatos por unidade</p>
+                  <div className="flex flex-wrap gap-3">
+                    {selected.contacts.map(c => (
+                      <div key={c.unit_id} className="text-xs bg-blue-50 text-blue-800 px-3 py-1.5 rounded-lg">
+                        <span className="font-semibold">{c.unit_name}:</span>{' '}
+                        {c.contact_name && <span>{c.contact_name} · </span>}
+                        {c.phone && <span>{c.phone}</span>}
+                        {c.delivery_days?.length > 0 && <span> · {c.delivery_days.join(', ')}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
+
+        {/* Unit Contacts section */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
+          <h3 className="font-semibold text-gray-700 mb-4">Contatos por Unidade</h3>
+          <p className="text-xs text-gray-400 mb-4">Configure telefone, e-mail e dias de entrega separados para cada unidade.</p>
+          {units.map(unit => {
+            const contact = unitContacts[unit.id] || {};
+            const isExpanded = expandedUnit === unit.id;
+            const isSaving = savingContact[unit.id];
+            const existingContact = (selected.contacts || []).find(c => c.unit_id === unit.id);
+            return (
+              <div key={unit.id} className="border border-gray-200 rounded-lg mb-3">
+                <button
+                  type="button"
+                  onClick={() => setExpandedUnit(isExpanded ? null : unit.id)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 rounded-lg"
+                >
+                  <span className="font-medium text-sm text-gray-700">{unit.name}</span>
+                  <div className="flex items-center gap-2">
+                    {existingContact?.phone && (
+                      <span className="text-xs text-gray-500">{existingContact.phone}</span>
+                    )}
+                    <span className="text-gray-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+                {isExpanded && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-gray-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Nome do contato</label>
+                        <input
+                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                          value={contact.contact_name || ''}
+                          onChange={e => updateUnitContact(unit.id, 'contact_name', e.target.value)}
+                          onBlur={() => handleSaveUnitContact(unit.id)}
+                          placeholder="Ex: João Vendas"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Telefone/WhatsApp</label>
+                        <input
+                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                          value={contact.phone || ''}
+                          onChange={e => updateUnitContact(unit.id, 'phone', e.target.value)}
+                          onBlur={() => handleSaveUnitContact(unit.id)}
+                          placeholder="19999999999"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">E-mail</label>
+                        <input
+                          type="email"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                          value={contact.email || ''}
+                          onChange={e => updateUnitContact(unit.id, 'email', e.target.value)}
+                          onBlur={() => handleSaveUnitContact(unit.id)}
+                          placeholder="vendas@fornecedor.com"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Dias de entrega nesta unidade</label>
+                      <div className="flex flex-wrap gap-2">
+                        {DELIVERY_DAYS.map(day => (
+                          <label key={day} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(contact.delivery_days || []).includes(day)}
+                              onChange={() => updateUnitContact(unit.id, 'delivery_days', toggleItem(contact.delivery_days || [], day))}
+                            />
+                            {day}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveUnitContact(unit.id)}
+                        disabled={isSaving}
+                        className="bg-brand-red text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-50"
+                      >
+                        {isSaving ? 'Salvando...' : 'Salvar contato'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Prices section */}

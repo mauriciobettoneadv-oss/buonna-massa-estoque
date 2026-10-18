@@ -248,6 +248,61 @@ export default function NotificationSettings() {
             </div>
           </div>
 
+          {/* BLOCO 3 — Cotação Automática */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <h2 className="font-semibold text-gray-700 mb-4 text-lg">🛒 Cotação Automática</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Ao finalizar uma contagem, o sistema envia automaticamente o link de cotação para cada fornecedor via WhatsApp.
+            </p>
+
+            <div className="mb-4 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="auto_send"
+                checked={settings.auto_send_quotation ?? true}
+                onChange={e => setSettings({ ...settings, auto_send_quotation: e.target.checked })}
+              />
+              <label htmlFor="auto_send" className="text-sm font-medium text-gray-700">
+                Enviar cotação automaticamente ao finalizar contagem
+              </label>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Hora limite para preenchimento</label>
+              <input
+                type="number"
+                min="0"
+                max="23"
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-24"
+                value={settings.quotation_deadline_hour ?? 18}
+                onChange={e => setSettings({ ...settings, quotation_deadline_hour: Number(e.target.value) })}
+              />
+              <span className="text-sm text-gray-500 ml-2">h (formato 24h)</span>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem de cotação</label>
+              <p className="text-xs text-gray-400 mb-1">Variáveis: {'{ contact_name }'}, {'{ unit_name }'}, {'{ link }'}, {'{ deadline }'}</p>
+              <textarea
+                rows={5}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full font-mono"
+                value={settings.quotation_msg_template || ''}
+                onChange={e => setSettings({ ...settings, quotation_msg_template: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mensagem de lembrete (16h)</label>
+              <p className="text-xs text-gray-400 mb-1">Variáveis: {'{ contact_name }'}, {'{ link }'}, {'{ deadline_hour }'}</p>
+              <textarea
+                rows={4}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full font-mono"
+                value={settings.quotation_reminder_template || ''}
+                onChange={e => setSettings({ ...settings, quotation_reminder_template: e.target.value })}
+              />
+            </div>
+          </div>
+
           <button
             type="submit"
             disabled={saving}

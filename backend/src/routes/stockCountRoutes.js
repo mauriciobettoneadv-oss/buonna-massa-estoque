@@ -2,12 +2,15 @@ const express = require('express');
 const { authenticate, requireRole } = require('../middleware/auth');
 const asyncHandler = require('../middleware/asyncHandler');
 const {
-  startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport,
+  startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport, getHistory, getSuggestions,
 } = require('../controllers/stockCountController');
 
 const router = express.Router();
 
 router.use(authenticate);
+
+router.get('/history', asyncHandler(getHistory));
+router.get('/suggestions/:unitId', asyncHandler(getSuggestions));
 
 router.get('/finalized', asyncHandler(async (req, res) => {
   const pool = require('../db/pool');
