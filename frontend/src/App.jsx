@@ -11,6 +11,8 @@ import Suppliers from './pages/Suppliers';
 import NotificationSettings from './pages/NotificationSettings';
 import SupplierQuotation from './pages/SupplierQuotation';
 import CountHistory from './pages/CountHistory';
+import ConferenciaPedido from './pages/ConferenciaPedido';
+import ConferenciaEntrega from './pages/ConferenciaEntrega';
 
 function App() {
   return (
@@ -35,6 +37,11 @@ function App() {
           <Route path="/historico" element={<CountHistory />} />
         </Route>
 
+        {/* Dono/proprietario/gerente: conferência de entrega */}
+        <Route element={<ProtectedRoute roles={['dono', 'proprietario', 'gerente']} />}>
+          <Route path="/conferencia-entrega" element={<ConferenciaEntrega />} />
+        </Route>
+
         {/* Somente dono/proprietario */}
         <Route element={<ProtectedRoute roles={['dono', 'proprietario']} />}>
           <Route path="/relatorio" element={<Report />} />
@@ -42,6 +49,7 @@ function App() {
           <Route path="/usuarios" element={<Users />} />
           <Route path="/fornecedores" element={<Suppliers />} />
           <Route path="/notificacoes" element={<NotificationSettings />} />
+          <Route path="/conferencia-pedido" element={<ConferenciaPedido />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/contagem" replace />} />

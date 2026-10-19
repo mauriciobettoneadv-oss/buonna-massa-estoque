@@ -27,6 +27,7 @@ router.get('/', asyncHandler(c.listQuotations));
 router.post('/', requireRole('proprietario'), asyncHandler(c.createQuotation));
 router.get('/:id', asyncHandler(c.getQuotation));
 router.get('/:id/orders', asyncHandler(c.getOrders));
+router.post('/:id/close', requireRole('proprietario'), asyncHandler(c.closeQuotation));
 router.post('/:id/suppliers', requireRole('proprietario'), asyncHandler(c.addSupplier));
 router.delete('/:id/suppliers/:supplierId', requireRole('proprietario'), asyncHandler(c.deleteSupplier));
 router.post('/:id/suppliers/:supplierId/token', requireRole('proprietario'), asyncHandler(generateSupplierToken));

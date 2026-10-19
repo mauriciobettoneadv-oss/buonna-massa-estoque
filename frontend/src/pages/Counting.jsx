@@ -122,6 +122,7 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
           />
           <StepButton onClick={() => { adj('current_stock', step); onSave({ ...item, current_stock: Number(item.current_stock) + step }); }} disabled={isReadOnly} label="+" />
         </div>
+        {item.unit_measure && <span className="text-xs text-gray-400">{item.unit_measure}</span>}
       </div>
 
       <div className="w-px h-10 bg-gray-200 shrink-0" />
@@ -143,6 +144,7 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
           />
           <StepButton onClick={() => { adj('qty_to_buy', buyStep); onSave({ ...item, qty_to_buy: Number(item.qty_to_buy) + buyStep }); }} disabled={isReadOnly} label="+" />
         </div>
+        {(item.purchase_unit || item.unit_measure) && <span className="text-xs text-gray-400">{item.purchase_unit || item.unit_measure}</span>}
         {sugg && sugg.n_counts > 0 && (
           <p className="text-xs text-gray-400">
             Média {sugg.n_counts >= 4 ? '4' : sugg.n_counts} sem.: {sugg.avg_qty} {item.purchase_unit || item.unit_measure}

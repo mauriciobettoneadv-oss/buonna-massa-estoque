@@ -1,0 +1,272 @@
+import { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import request from '../api/client';
+
+function fmt(n) {
+  return Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+export default function ConferenciaPedido() {
+  const { token } = useAuth();
+
+  // Step 1: list closed quotations
+  const [quotations, setQuotations] = useState([]);
+  const [selectedQuotation, setSelectedQuotation] = useState(null);
+  const [quotationData, setQuotationData] = useState(null);
+  const [loadingQuotation, setLoadingQuotation] = useState(false);
+
+  // Step 2: items for conferencia
+  const [itens, setItens] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState(null);
+
+  // History
+  const [conferencias, setConferencias] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  useEffect(() => {
+    request('/quotations', { token })
+      .then((list) => setQuotations(list.filter((q) => q.status === 'fechada')))
+      .catch(() => {});
+    loadHistory();
+  }, [token]);
+
+  async function loadHistory() {
+    setLoadingHistory(true);
+    try {
+      const list = await request('/conferencia-pedido', { token });
+      setConferencias(list);
+    } catch (e) {
+      // ignore
+    } finally {
+      setLoadingHistory(false);
+    }
+  }
+
+  async function selectQuotation(q) {
+    setSelectedQuotation(q);
+    setQuotationData(null);
+    setItens([]);
+    setSavedId(null);
+    setLoadingQuotation(true);
+    try {
+      const data = await request(`/quotations/${q.id}`, { token });
+      setQuotationData(data);
+
+      // Build items list with best prices
+      const builtItens = data.products.map((p) => {
+        // find best price
+        let bestPrice = 0;
+        let bestSupplier = '';
+        for (const s of data.suppliers) {
+          const px = data.prices.find((pr) => pr.supplier_id === s.id && pr.product_id === p.product_id);
+          const price = Number(px?.unit_price || 0);
+          if (price > 0 && (bestPrice === 0 || price < bestPrice)) {
+            bestPrice = price;
+            bestSupplier = s.name;
+          }
+        }
+        const totalQty = Object.values(p.qtys).reduce((s, v) => s + v, 0);
+        return {
+          product_id: p.product_id,
+          name: p.name,
+          purchase_unit: p.purchase_unit,
+          qty_pedida: totalQty,
+          preco_acordado: bestPrice,
+          supplier_name: bestSupplier,
+          qty_recebida: totalQty,
+          valor_cobrado: bestPrice,
+        };
+      });
+      setItens(builtItens);
+    } catch (e) {
+      alert('Erro ao carregar cotação: ' + e.message);
+    } finally {
+      setLoadingQuotation(false);
+    }
+  }
+
+  function updateItem(idx, field, value) {
+    setItens((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+  }
+
+  function isDivergente(item) {
+    return (
+      Number(item.qty_recebida) !== Number(item.qty_pedida) ||
+      Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
+    );
+  }
+
+  async function handleSave() {
+    if (!selectedQuotation) return;
+    setSaving(true);
+    try {
+      const result = await request('/conferencia-pedido', {
+        method: 'POST',
+        token,
+        body: { quotation_id: selectedQuotation.id, itens },
+      });
+      setSavedId(result.id);
+      await loadHistory();
+    } catch (e) {
+      alert('Erro ao salvar: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const divergentes = itens.filter(isDivergente);
+
+  return (
+    <div className="max-w-4xl mx-auto p-4">
+      <h1 className="text-xl font-bold text-brand-red mb-4">Conferência de Pedido</h1>
+
+      {/* Select quotation */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <p className="text-sm font-semibold text-gray-700 mb-3">Selecione uma cotação fechada para conferir:</p>
+        {quotations.length === 0 ? (
+          <p className="text-sm text-gray-400">Nenhuma cotação fechada disponível.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {quotations.map((q) => (
+              <button
+                key={q.id}
+                onClick={() => selectQuotation(q)}
+                className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                  selectedQuotation?.id === q.id
+                    ? 'bg-brand-red text-white border-brand-red'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-red'
+                }`}
+              >
+                Cotação #{q.id}
+                {q.units?.length > 0 && <span className="ml-1 text-xs opacity-75">({q.units.join(' + ')})</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Items */}
+      {loadingQuotation && <p className="text-gray-500 text-sm">Carregando produtos...</p>}
+
+      {quotationData && itens.length > 0 && !loadingQuotation && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-800">
+              Cotação #{selectedQuotation.id} — {itens.length} produtos
+            </h2>
+            {divergentes.length > 0 && (
+              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                🔴 {divergentes.length} divergência{divergentes.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {savedId && (
+            <div className="bg-green-50 border border-green-300 rounded-lg px-4 py-3 mb-4 text-sm text-green-800">
+              ✅ Conferência #{savedId} salva com sucesso!
+            </div>
+          )}
+
+          <div className="space-y-3 mb-6">
+            {itens.map((item, idx) => {
+              const div = isDivergente(item);
+              return (
+                <div
+                  key={item.product_id}
+                  className={`bg-white rounded-lg shadow-sm border p-4 ${div ? 'border-red-300 bg-red-50/40' : 'border-gray-200'}`}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <span className="font-semibold text-gray-800">{item.name}</span>
+                      {item.supplier_name && (
+                        <span className="ml-2 text-xs text-gray-500">Fornecedor: {item.supplier_name}</span>
+                      )}
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${div ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {div ? '🔴 Divergente' : '✅ OK'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600 mb-3">
+                    <span>Pedido: <strong>{item.qty_pedida} {item.purchase_unit}</strong></span>
+                    <span>Preço acordado: <strong>{fmt(item.preco_acordado)}</strong></span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-4 items-end">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Qtd recebida ({item.purchase_unit})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.qty_recebida}
+                        onChange={(e) => updateItem(idx, 'qty_recebida', e.target.value)}
+                        className={`border rounded px-3 py-1.5 text-sm w-28 text-center ${
+                          Number(item.qty_recebida) !== Number(item.qty_pedida)
+                            ? 'border-red-400 bg-red-50'
+                            : 'border-gray-300'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Valor cobrado (R$/un)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.valor_cobrado}
+                        onChange={(e) => updateItem(idx, 'valor_cobrado', e.target.value)}
+                        className={`border rounded px-3 py-1.5 text-sm w-28 text-center ${
+                          Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
+                            ? 'border-red-400 bg-red-50'
+                            : 'border-gray-300'
+                        }`}
+                      />
+                    </div>
+                    {div && (
+                      <div className="text-xs text-red-600">
+                        {Number(item.qty_recebida) !== Number(item.qty_pedida) && (
+                          <div>Qtd esperada: {item.qty_pedida}, recebida: {item.qty_recebida}</div>
+                        )}
+                        {Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001 && (
+                          <div>Preço acordado: {fmt(item.preco_acordado)}, cobrado: {fmt(item.valor_cobrado)}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-brand-red text-white rounded-lg px-6 py-2.5 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? 'Salvando...' : 'Confirmar Conferência'}
+          </button>
+        </div>
+      )}
+
+      {/* History */}
+      {conferencias.length > 0 && (
+        <div className="mt-8">
+          <h2 className="font-semibold text-gray-700 mb-3">Conferências anteriores</h2>
+          <div className="bg-white rounded-lg shadow divide-y">
+            {conferencias.map((c) => (
+              <div key={c.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                <span className="font-medium">Conf. #{c.id}</span>
+                <span className="text-gray-500">Cotação #{c.quotation_id}</span>
+                {c.units?.length > 0 && <span className="text-gray-400 text-xs">{c.units.join(' + ')}</span>}
+                <span className="text-gray-400 text-xs ml-auto">{new Date(c.criado_em).toLocaleDateString('pt-BR')}</span>
+                {c.criado_por_name && <span className="text-gray-500 text-xs">{c.criado_por_name}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

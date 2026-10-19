@@ -5,6 +5,12 @@ import request from '../api/client';
 const CATEGORIES = ['Laticínios', 'Embutidos', 'Bebidas', 'Limpeza', 'Descartáveis', 'Massas', 'Molhos', 'Outros'];
 const DELIVERY_DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
+const CANAIS_COMPRA_OPTIONS = [
+  { value: 'WhatsApp', label: 'WhatsApp', color: 'bg-green-100 text-green-700' },
+  { value: 'Site', label: 'Site', color: 'bg-blue-100 text-blue-700' },
+  { value: 'Aplicativo', label: 'Aplicativo', color: 'bg-purple-100 text-purple-700' },
+];
+
 const EMPTY_SUPPLIER = {
   name: '',
   categories: [],
@@ -14,6 +20,7 @@ const EMPTY_SUPPLIER = {
   delivery_days: [],
   delivery_cities: [],
   notes: '',
+  canais_compra: [],
 };
 
 function toggleItem(arr, item) {
@@ -37,6 +44,7 @@ export default function Suppliers() {
   const [unitContacts, setUnitContacts] = useState({}); // unit_id -> contact fields
   const [savingContact, setSavingContact] = useState({}); // unit_id -> bool
   const [expandedUnit, setExpandedUnit] = useState(null);
+  const [mesmoVendedor, setMesmoVendedor] = useState(false);
   const [error, setError] = useState('');
 
   const loadSuppliers = useCallback(async () => {
@@ -72,6 +80,7 @@ export default function Suppliers() {
     setUnitContacts(uc);
     setEditInfo(false);
     setExpandedUnit(null);
+    setMesmoVendedor(data.supplier.mesmo_vendedor || false);
     setView('detail');
   }
 
@@ -91,6 +100,7 @@ export default function Suppliers() {
         ...form,
         min_order: form.min_order !== '' ? Number(form.min_order) : 0,
         delivery_cities: form.delivery_cities || [],
+        canais_compra: form.canais_compra || [],
       };
       const created = await request('/suppliers', { method: 'POST', body, token });
       setSuppliers([...suppliers, { ...created, product_count: '0' }]);
@@ -115,6 +125,8 @@ export default function Suppliers() {
         delivery_days: selected.supplier.delivery_days,
         delivery_cities: selected.supplier.delivery_cities || [],
         notes: selected.supplier.notes,
+        canais_compra: selected.supplier.canais_compra || [],
+        mesmo_vendedor: mesmoVendedor,
       };
       const updated = await request(`/suppliers/${selected.supplier.id}`, { method: 'PUT', body, token });
       setSelected(s => ({ ...s, supplier: updated }));
@@ -320,6 +332,21 @@ export default function Suppliers() {
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Canal de compra</label>
+                <div className="flex flex-wrap gap-3">
+                  {CANAIS_COMPRA_OPTIONS.map(opt => (
+                    <label key={opt.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(sup.canais_compra || []).includes(opt.value)}
+                        onChange={() => updateSupplierField('canais_compra', toggleItem(sup.canais_compra || [], opt.value))}
+                      />
+                      {opt.value}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                 <textarea
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -395,6 +422,17 @@ export default function Suppliers() {
                   </div>
                 </div>
               )}
+              {sup.canais_compra?.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-gray-500 mb-1">Canal de compra</p>
+                  <div className="flex flex-wrap gap-1">
+                    {sup.canais_compra.map(c => {
+                      const opt = CANAIS_COMPRA_OPTIONS.find(o => o.value === c);
+                      return <span key={c} className={`text-xs px-2 py-0.5 rounded-full ${opt ? opt.color : 'bg-gray-100 text-gray-600'}`}>{c}</span>;
+                    })}
+                  </div>
+                </div>
+              )}
               {sup.notes && (
                 <div className="col-span-4">
                   <p className="text-gray-500">Observações</p>
@@ -423,7 +461,127 @@ export default function Suppliers() {
         {/* Unit Contacts section */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
           <h3 className="font-semibold text-gray-700 mb-4">Contatos por Unidade</h3>
-          <p className="text-xs text-gray-400 mb-4">Configure telefone, e-mail e dias de entrega separados para cada unidade.</p>
+
+          {/* Mesmo vendedor toggle */}
+          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mesmoVendedor}
+                onChange={async (e) => {
+                  const val = e.target.checked;
+                  setMesmoVendedor(val);
+                  try {
+                    await request(`/suppliers/${sup.id}`, {
+                      method: 'PUT',
+                      body: {
+                        name: sup.name, categories: sup.categories, phone: sup.phone, email: sup.email,
+                        min_order: sup.min_order, delivery_days: sup.delivery_days,
+                        delivery_cities: sup.delivery_cities || [], notes: sup.notes,
+                        canais_compra: sup.canais_compra || [], mesmo_vendedor: val,
+                      },
+                      token,
+                    });
+                  } catch (err) {
+                    setError(err.message || 'Erro ao salvar.');
+                  }
+                }}
+                className="w-4 h-4 accent-brand-red"
+              />
+              <span className="text-sm font-medium text-gray-700">Mesmo vendedor para todas as unidades</span>
+            </label>
+            {mesmoVendedor && <span className="text-xs text-gray-400">Os campos de contato abaixo valem para todas as unidades. Os dias de entrega continuam por unidade.</span>}
+          </div>
+
+          {mesmoVendedor ? (
+            <div className="border border-gray-200 rounded-lg mb-3 p-4">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Contato único (todas as unidades)</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Nome do contato</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                    value={(unitContacts['shared'] || {}).contact_name || ''}
+                    onChange={e => setUnitContacts(uc => ({ ...uc, shared: { ...(uc.shared || {}), contact_name: e.target.value } }))}
+                    onBlur={() => {
+                      units.forEach(unit => {
+                        const shared = unitContacts['shared'] || {};
+                        const existing = unitContacts[unit.id] || {};
+                        updateUnitContact(unit.id, 'contact_name', shared.contact_name || existing.contact_name || '');
+                        updateUnitContact(unit.id, 'phone', shared.phone || existing.phone || '');
+                        updateUnitContact(unit.id, 'email', shared.email || existing.email || '');
+                      });
+                    }}
+                    placeholder="Ex: João Vendas"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Telefone/WhatsApp</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                    value={(unitContacts['shared'] || {}).phone || ''}
+                    onChange={e => setUnitContacts(uc => ({ ...uc, shared: { ...(uc.shared || {}), phone: e.target.value } }))}
+                    placeholder="19999999999"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">E-mail</label>
+                  <input
+                    type="email"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                    value={(unitContacts['shared'] || {}).email || ''}
+                    onChange={e => setUnitContacts(uc => ({ ...uc, shared: { ...(uc.shared || {}), email: e.target.value } }))}
+                    placeholder="vendas@fornecedor.com"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  const shared = unitContacts['shared'] || {};
+                  for (const unit of units) {
+                    const existing = unitContacts[unit.id] || {};
+                    setUnitContacts(uc => ({
+                      ...uc,
+                      [unit.id]: { ...existing, contact_name: shared.contact_name || '', phone: shared.phone || '', email: shared.email || '' },
+                    }));
+                    await handleSaveUnitContact(unit.id);
+                  }
+                }}
+                className="mt-3 bg-brand-red text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:opacity-90"
+              >
+                Salvar contato para todas as unidades
+              </button>
+              <div className="mt-4">
+                <p className="text-xs font-medium text-gray-600 mb-2">Dias de entrega por unidade</p>
+                {units.map(unit => {
+                  const contact = unitContacts[unit.id] || {};
+                  return (
+                    <div key={unit.id} className="mb-2">
+                      <p className="text-xs text-gray-500 mb-1">{unit.name}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {DELIVERY_DAYS.map(day => (
+                          <label key={day} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(contact.delivery_days || []).includes(day)}
+                              onChange={() => {
+                                updateUnitContact(unit.id, 'delivery_days', toggleItem(contact.delivery_days || [], day));
+                                setTimeout(() => handleSaveUnitContact(unit.id), 0);
+                              }}
+                            />
+                            {day}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-400 mb-4">Configure telefone, e-mail e dias de entrega separados para cada unidade.</p>
           {units.map(unit => {
             const contact = unitContacts[unit.id] || {};
             const isExpanded = expandedUnit === unit.id;
@@ -509,6 +667,8 @@ export default function Suppliers() {
               </div>
             );
           })}
+            </>
+          )}
         </div>
 
         {/* Prices section */}
@@ -660,6 +820,21 @@ export default function Suppliers() {
             </div>
           </div>
           <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Canal de compra</label>
+            <div className="flex flex-wrap gap-3">
+              {CANAIS_COMPRA_OPTIONS.map(opt => (
+                <label key={opt.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(form.canais_compra || []).includes(opt.value)}
+                    onChange={() => setForm({ ...form, canais_compra: toggleItem(form.canais_compra || [], opt.value) })}
+                  />
+                  {opt.value}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
             <textarea
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -705,6 +880,10 @@ export default function Suppliers() {
                   {(s.categories || []).map(c => (
                     <span key={c} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c}</span>
                   ))}
+                  {(s.canais_compra || []).map(c => {
+                    const opt = CANAIS_COMPRA_OPTIONS.find(o => o.value === c);
+                    return <span key={c} className={`text-xs px-2 py-0.5 rounded-full ${opt ? opt.color : 'bg-gray-100 text-gray-600'}`}>{c}</span>;
+                  })}
                 </div>
                 <div className="flex gap-4 mt-2 text-sm text-gray-500 flex-wrap">
                   {s.phone && <span>{s.phone}</span>}

@@ -5,9 +5,9 @@ async function listQuotations(req, res) {
     `SELECT q.id, q.status, q.created_at,
             array_agg(DISTINCT u.name) AS units
      FROM quotations q
-     JOIN quotation_counts qc ON qc.quotation_id = q.id
-     JOIN stock_counts sc ON sc.id = qc.stock_count_id
-     JOIN units u ON u.id = sc.unit_id
+     LEFT JOIN quotation_counts qc ON qc.quotation_id = q.id
+     LEFT JOIN stock_counts sc ON sc.id = qc.stock_count_id
+     LEFT JOIN units u ON u.id = sc.unit_id
      GROUP BY q.id ORDER BY q.id DESC`
   );
   res.json(result.rows);
@@ -258,4 +258,14 @@ async function getOrders(req, res) {
   res.json({ quotation: quotation.rows[0], orders });
 }
 
-module.exports = { listQuotations, createQuotation, getQuotation, addSupplier, deleteSupplier, savePrices, getOrders };
+async function closeQuotation(req, res) {
+  const { id } = req.params;
+  const result = await pool.query(
+    `UPDATE quotations SET status = 'fechada' WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'Cotação não encontrada.' });
+  res.json(result.rows[0]);
+}
+
+module.exports = { listQuotations, createQuotation, getQuotation, addSupplier, deleteSupplier, savePrices, getOrders, closeQuotation };

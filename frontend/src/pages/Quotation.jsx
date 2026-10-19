@@ -79,7 +79,6 @@ function NewQuotationModal({ onClose, onCreated, token }) {
 function ExtractResultModal({ result, onClose }) {
   const brandWarnings = result.matches.filter((m) => m.brand_warning);
   const unitWarnings = result.matches.filter((m) => m.unit_warning);
-  const allWarnings = [...new Set([...brandWarnings, ...unitWarnings])];
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -108,33 +107,30 @@ function ExtractResultModal({ result, onClose }) {
         )}
 
         <div className="overflow-y-auto flex-1 divide-y border rounded-lg mb-4">
-          {result.matches.map((m, i) => {
-            const hasWarning = m.brand_warning || m.unit_warning;
-            return (
-              <div key={i} className={`flex items-start gap-3 p-2 text-sm ${m.unit_warning ? 'bg-orange-50' : m.brand_warning ? 'bg-amber-50' : ''}`}>
-                <span className={`mt-0.5 w-10 text-center text-xs font-bold rounded-full px-1 py-0.5 flex-shrink-0 ${m.confidence >= 80 ? 'bg-green-100 text-green-700' : m.confidence >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {m.confidence}%
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium">{m.product_name}</p>
-                  <p className="text-xs text-gray-400">
-                    Extraído: "{m.extracted_name}"
-                    {m.extracted_unit && (
-                      <span className={`ml-2 font-medium ${m.unit_warning ? 'text-orange-600' : 'text-gray-500'}`}>
-                        por {m.extracted_unit}
-                        {m.expected_unit && m.unit_warning && ` (esperado: por ${m.expected_unit})`}
-                      </span>
-                    )}
-                  </p>
-                  {m.brand_warning && <p className="text-xs text-amber-600">⚠ {m.brand_warning}</p>}
-                  {m.unit_warning && <p className="text-xs text-orange-600">📦 {m.unit_warning}</p>}
-                </div>
-                <span className={`font-semibold flex-shrink-0 ${m.unit_warning ? 'text-orange-700' : 'text-green-700'}`}>
-                  {fmt(m.unit_price)}
-                </span>
+          {result.matches.map((m, i) => (
+            <div key={i} className={`flex items-start gap-3 p-2 text-sm ${m.unit_warning ? 'bg-orange-50' : m.brand_warning ? 'bg-amber-50' : ''}`}>
+              <span className={`mt-0.5 w-10 text-center text-xs font-bold rounded-full px-1 py-0.5 flex-shrink-0 ${m.confidence >= 80 ? 'bg-green-100 text-green-700' : m.confidence >= 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>
+                {m.confidence}%
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium">{m.product_name}</p>
+                <p className="text-xs text-gray-400">
+                  Extraído: "{m.extracted_name}"
+                  {m.extracted_unit && (
+                    <span className={`ml-2 font-medium ${m.unit_warning ? 'text-orange-600' : 'text-gray-500'}`}>
+                      por {m.extracted_unit}
+                      {m.expected_unit && m.unit_warning && ` (esperado: por ${m.expected_unit})`}
+                    </span>
+                  )}
+                </p>
+                {m.brand_warning && <p className="text-xs text-amber-600">⚠ {m.brand_warning}</p>}
+                {m.unit_warning && <p className="text-xs text-orange-600">📦 {m.unit_warning}</p>}
               </div>
-            );
-          })}
+              <span className={`font-semibold flex-shrink-0 ${m.unit_warning ? 'text-orange-700' : 'text-green-700'}`}>
+                {fmt(m.unit_price)}
+              </span>
+            </div>
+          ))}
           {result.matches.length === 0 && <p className="p-4 text-gray-400 text-sm text-center">Nenhum produto reconhecido.</p>}
         </div>
         <button onClick={onClose} className="bg-brand-red text-white rounded px-4 py-2 text-sm w-full">
@@ -157,8 +153,6 @@ function OrdersView({ quotationId, token, onBack }) {
 
   if (!orders) return <p className="text-gray-500 p-4">Carregando pedidos...</p>;
 
-  // Consolida todos os pedidos de todas as unidades por fornecedor
-  // supplierMap: { supplierName: { unitName: [items] } }
   function buildSupplierMap() {
     const map = {};
     for (const order of orders) {
@@ -170,7 +164,6 @@ function OrdersView({ quotationId, token, onBack }) {
     return map;
   }
 
-  // Texto de cópia por fornecedor (todas as unidades juntas)
   function buildSupplierText(supplierName, unitMap) {
     const date = new Date().toLocaleDateString('pt-BR');
     let text = `PEDIDO – BUONNA MASSA\nFornecedor: ${supplierName}\nData: ${date}\n`;
@@ -207,7 +200,6 @@ function OrdersView({ quotationId, token, onBack }) {
           const key = supplierName;
           return (
             <div key={key} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* Cabeçalho do fornecedor */}
               <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b">
                 <span className="font-semibold text-gray-800">📦 {supplierName}</span>
                 <div className="flex gap-2">
@@ -234,9 +226,8 @@ function OrdersView({ quotationId, token, onBack }) {
                 </div>
               </div>
 
-              {/* Produtos — colunas por unidade se houver mais de uma */}
               {unitNames.length > 1 ? (
-                <div className={`grid grid-cols-${unitNames.length} divide-x`} style={{ gridTemplateColumns: `repeat(${unitNames.length}, 1fr)` }}>
+                <div style={{ gridTemplateColumns: `repeat(${unitNames.length}, 1fr)` }} className="grid divide-x">
                   {unitNames.map((unitName) => {
                     const items = unitMap[unitName] || [];
                     const sub = items.reduce((s, i) => s + i.total_price, 0);
@@ -272,7 +263,6 @@ function OrdersView({ quotationId, token, onBack }) {
                   })}
                 </div>
               ) : (
-                // Apenas 1 unidade — layout simples em linha
                 <div className="divide-y">
                   {Object.values(unitMap).flat().map((item) => (
                     <div key={item.product_id} className="flex items-center gap-3 px-4 py-2 text-sm">
@@ -304,7 +294,7 @@ function OrdersView({ quotationId, token, onBack }) {
 
 // ─── Supplier Tab Content ─────────────────────────────────────────────────────
 
-function SupplierTab({ supplier, quotationId, products, data, localPrices, onPriceChange, onSave, onDelete, onExtracted, token, onTokenGenerated }) {
+function SupplierTab({ supplier, quotationId, products, data, localPrices, onPriceChange, onSave, onDelete, onExtracted, token, onTokenGenerated, readOnly }) {
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
@@ -315,6 +305,12 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
   const [linkCopied, setLinkCopied] = useState(false);
   const [search, setSearch] = useState('');
   const sp = localPrices[supplier.id] || {};
+
+  // Badge: respondeu se tem algum preço > 0
+  const hasAnyPrice = data.prices.some(
+    (px) => px.supplier_id === supplier.id && Number(px.unit_price) > 0
+  );
+
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -396,50 +392,57 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
       {extractResult && (
         <ExtractResultModal result={extractResult} onClose={() => setExtractResult(null)} />
       )}
-      <div className="flex items-center justify-between p-3 border-b gap-3 flex-wrap">
-        <span className="font-medium text-sm">{supplier.name}</span>
-        <div className="flex items-center gap-2 flex-wrap">
-          <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={handleUpload} />
-          <button
-            onClick={() => fileRef.current.click()}
-            disabled={uploading || pasting}
-            className="flex items-center gap-1 bg-blue-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
-          >
-            {uploading ? (
-              <><span className="animate-spin">⟳</span> Lendo...</>
-            ) : (
-              <>📷 Imagem / PDF</>
-            )}
-          </button>
-          <button
-            onClick={() => setShowPaste((v) => !v)}
-            disabled={uploading || pasting}
-            className="flex items-center gap-1 bg-violet-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
-          >
-            📋 Colar cotação
-          </button>
-          <button onClick={() => onSave(supplier.id)} className="bg-brand-red text-white rounded px-3 py-1 text-sm hover:opacity-90">
-            Salvar preços
-          </button>
-          <button onClick={() => onDelete(supplier.id)} className="text-red-500 text-sm hover:underline">Remover</button>
+      <div className="flex items-center justify-between p-4 border-b gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-base">{supplier.name}</span>
+          {hasAnyPrice
+            ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✅ Respondeu</span>
+            : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">⏳ Aguardando</span>
+          }
         </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={handleUpload} />
+            <button
+              onClick={() => fileRef.current.click()}
+              disabled={uploading || pasting}
+              className="flex items-center gap-1 bg-blue-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              {uploading ? <><span className="animate-spin">⟳</span> Lendo...</> : <>📷 Imagem / PDF</>}
+            </button>
+            <button
+              onClick={() => setShowPaste((v) => !v)}
+              disabled={uploading || pasting}
+              className="flex items-center gap-1 bg-violet-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
+            >
+              📋 Colar cotação
+            </button>
+            <button onClick={() => onSave(supplier.id)} className="bg-brand-red text-white rounded px-3 py-1 text-sm hover:opacity-90">
+              Salvar preços
+            </button>
+            <button onClick={() => onDelete(supplier.id)} className="text-red-500 text-sm hover:underline">Remover</button>
+          </div>
+        )}
       </div>
-      {/* Link para o fornecedor */}
-      <div className="px-3 py-2 bg-green-50 border-b flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-green-700 flex-1">
-          {supplier.access_token
-            ? `Link gerado — o fornecedor pode preencher os preços diretamente.`
-            : `Gere um link e envie para o fornecedor preencher os preços.`}
-        </span>
-        <button
-          onClick={handleCopyLink}
-          disabled={generatingLink}
-          className="flex items-center gap-1 bg-green-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
-        >
-          {generatingLink ? '⟳ Gerando...' : linkCopied ? '✓ Copiado!' : '🔗 Copiar link'}
-        </button>
-      </div>
-      {showPaste && (
+
+      {!readOnly && (
+        <div className="px-4 py-2 bg-green-50 border-b flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-green-700 flex-1">
+            {supplier.access_token
+              ? `Link gerado — o fornecedor pode preencher os preços diretamente.`
+              : `Gere um link e envie para o fornecedor preencher os preços.`}
+          </span>
+          <button
+            onClick={handleCopyLink}
+            disabled={generatingLink}
+            className="flex items-center gap-1 bg-green-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
+          >
+            {generatingLink ? '⟳ Gerando...' : linkCopied ? '✓ Copiado!' : '🔗 Copiar link'}
+          </button>
+        </div>
+      )}
+
+      {!readOnly && showPaste && (
         <div className="px-3 py-2 bg-violet-50 border-b">
           <p className="text-xs text-violet-700 mb-1">Cole o texto da cotação (WhatsApp, e-mail, etc.):</p>
           <textarea
@@ -464,7 +467,7 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
         </div>
       )}
 
-      <div className="px-3 py-2 border-b">
+      <div className="px-4 py-2 border-b">
         <input
           type="text"
           placeholder="🔍 Buscar produto..."
@@ -483,8 +486,8 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
         const isWinner = best?.supplierId === supplier.id && Number(sp[p.product_id] || 0) > 0;
         const totalQty = Object.values(p.qtys).reduce((s, q) => s + q, 0);
         return (
-          <div key={p.product_id} className={`flex items-center gap-3 px-3 py-2 border-b last:border-0 ${isWinner ? 'bg-green-50' : ''}`}>
-            <span className="flex-1 text-sm">{p.name}</span>
+          <div key={p.product_id} className={`flex items-center gap-3 px-4 py-2.5 border-b last:border-0 ${isWinner ? 'bg-green-50' : ''}`}>
+            <span className="flex-1 text-sm font-medium">{p.name}</span>
             <span className="text-xs text-gray-400">{totalQty} {p.purchase_unit}</span>
             {isWinner && <span className="text-xs text-green-600 font-medium">✓ menor preço</span>}
             <input
@@ -492,11 +495,79 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
               step="0.01"
               min="0"
               value={sp[p.product_id] ?? ''}
-              onChange={(e) => onPriceChange(supplier.id, p.product_id, e.target.value)}
-              onBlur={() => onSave(supplier.id)}
-              className={`w-24 border rounded px-2 py-1 text-center text-sm ${isWinner ? 'border-green-500 font-bold' : 'border-gray-300'}`}
+              onChange={(e) => !readOnly && onPriceChange(supplier.id, p.product_id, e.target.value)}
+              onBlur={() => !readOnly && onSave(supplier.id)}
+              disabled={readOnly}
+              className={`w-24 border rounded px-2 py-1 text-center text-sm ${isWinner ? 'border-green-500 font-bold' : 'border-gray-300'} ${readOnly ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
             />
             <span className="text-xs text-gray-400 w-10">R$/un</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Best Price Tab ───────────────────────────────────────────────────────────
+
+function BestPriceTab({ data }) {
+  // Compute supplier totals (sum of qty*best_price for each product where supplier is cheapest)
+  const supplierTotals = {};
+  const supplierHasPrice = {};
+
+  for (const s of data.suppliers) {
+    supplierTotals[s.id] = { name: s.name, total: 0, id: s.id };
+    supplierHasPrice[s.id] = data.prices.some(
+      (px) => px.supplier_id === s.id && Number(px.unit_price) > 0
+    );
+  }
+
+  for (const p of data.products) {
+    const best = bestForProduct(data.prices, data.suppliers, p.product_id);
+    if (best) {
+      const totalQty = Object.values(p.qtys).reduce((s, q) => s + q, 0);
+      supplierTotals[best.supplierId].total += totalQty * best.price;
+    }
+  }
+
+  const totalsArr = Object.values(supplierTotals).filter((s) => s.total > 0);
+
+  return (
+    <div className="bg-white rounded-b-lg rounded-tr-lg shadow">
+      {/* Resumo por fornecedor */}
+      {totalsArr.length > 0 && (
+        <div className="p-4 border-b bg-gray-50">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Resumo por fornecedor</p>
+          <div className="flex flex-wrap gap-3">
+            {totalsArr.map((s) => (
+              <div key={s.id} className="bg-white border border-gray-200 rounded-lg px-4 py-2.5 flex items-center gap-3 shadow-sm">
+                <span className="font-semibold text-sm text-gray-800">{s.name}</span>
+                <span className="text-sm font-bold text-green-700">{fmt(s.total)}</span>
+                {supplierHasPrice[s.id]
+                  ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✅ Respondeu</span>
+                  : <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">⏳ Aguardando</span>
+                }
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="px-4 py-2 border-b text-sm text-gray-500">Menor preço por item entre todos os fornecedores.</div>
+      {data.products.map((p) => {
+        const best = bestForProduct(data.prices, data.suppliers, p.product_id);
+        return (
+          <div key={p.product_id} className="flex items-center gap-3 px-4 py-2.5 border-b last:border-0">
+            <span className="flex-1 text-sm font-medium">{p.name}</span>
+            <span className="text-xs text-gray-400">
+              {Object.entries(p.qtys).map(([uid, qty]) => {
+                const unit = data.counts.find((c) => String(c.unit_id) === String(uid));
+                return `${unit?.unit_name || uid}: ${qty}`;
+              }).join(' | ')} {p.purchase_unit}
+            </span>
+            {best
+              ? <span className="bg-green-100 text-green-800 font-semibold text-sm px-2 py-0.5 rounded">{fmt(best.price)} <span className="text-xs font-normal text-green-600">({best.supplier})</span></span>
+              : <span className="text-gray-400 text-sm">—</span>}
           </div>
         );
       })}
@@ -507,7 +578,8 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Quotation() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isOwner = ['dono', 'proprietario'].includes(user?.role);
   const [quotations, setQuotations] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [data, setData] = useState(null);
@@ -523,6 +595,8 @@ export default function Quotation() {
   const [error, setError] = useState('');
   const [quotationRequestText, setQuotationRequestText] = useState('');
   const [copiedRequest, setCopiedRequest] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
+  const [closingId, setClosingId] = useState(null);
 
   async function loadList() {
     const list = await request('/quotations', { token });
@@ -604,6 +678,20 @@ export default function Quotation() {
     await loadQuotation(selectedId);
   }
 
+  async function handleCloseQuotation() {
+    if (!window.confirm('Fechar esta cotação? Ela ficará somente leitura.')) return;
+    setClosingId(selectedId);
+    try {
+      await request(`/quotations/${selectedId}/close`, { method: 'POST', token });
+      await loadList();
+      await loadQuotation(selectedId);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setClosingId(null);
+    }
+  }
+
   function generateQuotationRequest() {
     if (!data) return;
     const date = new Date().toLocaleDateString('pt-BR');
@@ -612,17 +700,20 @@ export default function Quotation() {
     text += `Data: ${date}\n`;
     text += '===========================================\n\n';
     text += 'Prezado fornecedor, solicito cotação para os itens abaixo:\n\n';
-
     for (const p of data.products) {
       text += `- ${p.name}\n`;
     }
-
     text += '\n===========================================\n';
     text += 'Por favor, envie os preços unitários.\nBuonna Massa Pizzaria';
     setQuotationRequestText(text);
     setShowQuotationRequest(true);
     setCopiedRequest(false);
   }
+
+  const openQuotations = quotations.filter((q) => q.status !== 'fechada');
+  const closedQuotations = quotations.filter((q) => q.status === 'fechada');
+
+  const isClosed = data?.quotation?.status === 'fechada';
 
   if (showOrders && selectedId) {
     return (
@@ -665,39 +756,84 @@ export default function Quotation() {
 
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-brand-red">Cotação de Compras</h1>
-        <button onClick={() => setShowModal(true)} className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90">
-          + Nova Cotação
-        </button>
+        {isOwner && (
+          <button onClick={() => setShowModal(true)} className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90">
+            + Nova Cotação
+          </button>
+        )}
       </div>
 
       {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
 
       {/* List */}
       {!selectedId && (
-        <div className="bg-white rounded-lg shadow divide-y">
-          {quotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação ainda.</p>}
-          {quotations.map((q) => (
-            <button key={q.id} onClick={() => { setSelectedId(q.id); setActiveTab(null); setShowOrders(false); }}
-              className="w-full text-left flex items-center gap-3 p-3 hover:bg-gray-50">
-              <span className="text-sm font-medium">Cotação #{q.id}</span>
-              <span className="text-xs text-gray-500">{q.units?.join(' + ')}</span>
-              <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('pt-BR')}</span>
-              <span className={`ml-auto text-xs px-2 py-1 rounded-full ${q.status === 'finalizada' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{q.status}</span>
+        <div>
+          {/* Abertas */}
+          <div className="bg-white rounded-lg shadow divide-y mb-4">
+            <div className="px-4 py-2 bg-gray-50 rounded-t-lg">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Abertas ({openQuotations.length})</span>
+            </div>
+            {openQuotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação aberta.</p>}
+            {openQuotations.map((q) => (
+              <button key={q.id} onClick={() => { setSelectedId(q.id); setActiveTab(null); setShowOrders(false); }}
+                className="w-full text-left flex items-center gap-3 p-3 hover:bg-gray-50">
+                <span className="text-sm font-medium">Cotação #{q.id}</span>
+                <span className="text-xs text-gray-500">{q.units?.join(' + ')}</span>
+                <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('pt-BR')}</span>
+                <span className="ml-auto text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">{q.status || 'aberta'}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Fechadas */}
+          <div className="bg-white rounded-lg shadow divide-y">
+            <button
+              className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 rounded-t-lg hover:bg-gray-100"
+              onClick={() => setShowClosed((v) => !v)}
+            >
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fechadas/Concluídas ({closedQuotations.length})</span>
+              <span className="text-xs text-gray-400">{showClosed ? '▲ Ocultar' : '▼ Mostrar cotações fechadas'}</span>
             </button>
-          ))}
+            {showClosed && (
+              <>
+                {closedQuotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação fechada.</p>}
+                {closedQuotations.map((q) => (
+                  <button key={q.id} onClick={() => { setSelectedId(q.id); setActiveTab(null); setShowOrders(false); }}
+                    className="w-full text-left flex items-center gap-3 p-3 hover:bg-gray-50 opacity-70">
+                    <span className="text-sm font-medium">Cotação #{q.id}</span>
+                    <span className="text-xs text-gray-500">{q.units?.join(' + ')}</span>
+                    <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('pt-BR')}</span>
+                    <span className="ml-auto text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-600">Concluída</span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
         </div>
       )}
 
       {/* Detail */}
       {selectedId && data && (
         <div>
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
             <button onClick={() => { setSelectedId(null); setData(null); }} className="text-sm text-brand-red hover:underline">← Voltar</button>
             <h2 className="font-semibold">Cotação #{selectedId}</h2>
+            {isClosed && (
+              <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full font-medium">Concluída</span>
+            )}
             <span className="text-xs text-gray-500">
               {data.counts.map((c) => `${c.unit_name} (${new Date(c.finalized_at).toLocaleDateString('pt-BR')})`).join(' + ')}
             </span>
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex gap-2 flex-wrap">
+              {isOwner && !isClosed && (
+                <button
+                  onClick={handleCloseQuotation}
+                  disabled={!!closingId}
+                  className="border border-gray-400 text-gray-600 rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-100 disabled:opacity-50"
+                >
+                  {closingId ? 'Fechando...' : 'Fechar Cotação'}
+                </button>
+              )}
               <button onClick={generateQuotationRequest} className="border border-brand-red text-brand-red rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand-red hover:text-white">
                 Pedido de Cotação
               </button>
@@ -707,37 +843,39 @@ export default function Quotation() {
             </div>
           </div>
 
-          <div className="flex gap-2 mb-4 flex-wrap">
-            {globalSuppliers.length > 0 ? (
-              <select
-                value={newSupplierId}
-                onChange={(e) => { setNewSupplierId(e.target.value); setNewSupplierName(''); }}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs"
+          {!isClosed && isOwner && (
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {globalSuppliers.length > 0 ? (
+                <select
+                  value={newSupplierId}
+                  onChange={(e) => { setNewSupplierId(e.target.value); setNewSupplierName(''); }}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs"
+                >
+                  <option value="">— Selecionar fornecedor cadastrado —</option>
+                  {globalSuppliers.map((s) => (
+                    <option key={s.id} value={String(s.id)}>{s.name}</option>
+                  ))}
+                  <option value="__novo__">+ Novo fornecedor (digitar nome)</option>
+                </select>
+              ) : null}
+              {(newSupplierId === '__novo__' || globalSuppliers.length === 0) && (
+                <input
+                  value={newSupplierName}
+                  onChange={(e) => setNewSupplierName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddSupplier()}
+                  placeholder="Nome do fornecedor..."
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs"
+                />
+              )}
+              <button
+                onClick={handleAddSupplier}
+                disabled={addingSupplier || (!newSupplierId && !newSupplierName.trim()) || newSupplierId === '__novo__' && !newSupplierName.trim()}
+                className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
               >
-                <option value="">— Selecionar fornecedor cadastrado —</option>
-                {globalSuppliers.map((s) => (
-                  <option key={s.id} value={String(s.id)}>{s.name}</option>
-                ))}
-                <option value="__novo__">+ Novo fornecedor (digitar nome)</option>
-              </select>
-            ) : null}
-            {(newSupplierId === '__novo__' || globalSuppliers.length === 0) && (
-              <input
-                value={newSupplierName}
-                onChange={(e) => setNewSupplierName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddSupplier()}
-                placeholder="Nome do fornecedor..."
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-1 max-w-xs"
-              />
-            )}
-            <button
-              onClick={handleAddSupplier}
-              disabled={addingSupplier || (!newSupplierId && !newSupplierName.trim()) || newSupplierId === '__novo__' && !newSupplierName.trim()}
-              className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
-            >
-              + Adicionar Fornecedor
-            </button>
-          </div>
+                + Adicionar Fornecedor
+              </button>
+            </div>
+          )}
 
           {data.suppliers.length > 0 && (
             <div className="flex gap-1 mb-0 flex-wrap">
@@ -771,36 +909,16 @@ export default function Quotation() {
                 onExtracted={() => loadQuotation(selectedId)}
                 onTokenGenerated={handleTokenGenerated}
                 token={token}
+                readOnly={isClosed}
               />
             );
           })()}
 
-          {activeTab === 'best' && (
-            <div className="bg-white rounded-b-lg rounded-tr-lg shadow">
-              <div className="px-3 py-2 border-b text-sm text-gray-500">Menor preço por item entre todos os fornecedores.</div>
-              {data.products.map((p) => {
-                const best = bestForProduct(data.prices, data.suppliers, p.product_id);
-                return (
-                  <div key={p.product_id} className="flex items-center gap-3 px-3 py-2 border-b last:border-0">
-                    <span className="flex-1 text-sm">{p.name}</span>
-                    <span className="text-xs text-gray-400">
-                      {Object.entries(p.qtys).map(([uid, qty]) => {
-                        const unit = data.counts.find((c) => String(c.unit_id) === String(uid));
-                        return `${unit?.unit_name || uid}: ${qty}`;
-                      }).join(' | ')} {p.purchase_unit}
-                    </span>
-                    {best
-                      ? <span className="text-green-700 font-semibold text-sm">{fmt(best.price)} <span className="text-xs font-normal text-gray-500">({best.supplier})</span></span>
-                      : <span className="text-gray-400 text-sm">—</span>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {activeTab === 'best' && <BestPriceTab data={data} />}
 
           {data.suppliers.length === 0 && (
             <div className="bg-white rounded-lg shadow p-6 text-center text-gray-400 text-sm">
-              Adicione fornecedores acima para começar a cotar.
+              {isClosed ? 'Cotação concluída — sem fornecedores registrados.' : 'Adicione fornecedores acima para começar a cotar.'}
             </div>
           )}
         </div>

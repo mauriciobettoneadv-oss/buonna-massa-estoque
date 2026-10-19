@@ -37,19 +37,19 @@ async function getSupplier(req, res) {
 }
 
 async function createSupplier(req, res) {
-  const { name, categories, phone, email, min_order, delivery_days, delivery_cities, notes } = req.body;
+  const { name, categories, phone, email, min_order, delivery_days, delivery_cities, notes, canais_compra } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome é obrigatório.' });
   const result = await pool.query(
-    `INSERT INTO suppliers (name, categories, phone, email, min_order, delivery_days, delivery_cities, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [name, categories || [], phone, email, min_order || 0, delivery_days || [], delivery_cities || [], notes]
+    `INSERT INTO suppliers (name, categories, phone, email, min_order, delivery_days, delivery_cities, notes, canais_compra)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [name, categories || [], phone, email, min_order || 0, delivery_days || [], delivery_cities || [], notes, JSON.stringify(canais_compra || [])]
   );
   res.status(201).json(result.rows[0]);
 }
 
 async function updateSupplier(req, res) {
   const { id } = req.params;
-  const { name, categories, phone, email, min_order, delivery_days, delivery_cities, notes } = req.body;
+  const { name, categories, phone, email, min_order, delivery_days, delivery_cities, notes, canais_compra, mesmo_vendedor } = req.body;
   const result = await pool.query(
     `UPDATE suppliers SET
        name = COALESCE($1, name),
@@ -59,9 +59,13 @@ async function updateSupplier(req, res) {
        min_order = COALESCE($5, min_order),
        delivery_days = COALESCE($6, delivery_days),
        delivery_cities = COALESCE($7, delivery_cities),
-       notes = COALESCE($8, notes)
+       notes = COALESCE($8, notes),
+       canais_compra = COALESCE($10, canais_compra),
+       mesmo_vendedor = COALESCE($11, mesmo_vendedor)
      WHERE id = $9 RETURNING *`,
-    [name, categories, phone, email, min_order, delivery_days, delivery_cities, notes, id]
+    [name, categories, phone, email, min_order, delivery_days, delivery_cities, notes, id,
+     canais_compra !== undefined ? JSON.stringify(canais_compra) : null,
+     mesmo_vendedor !== undefined ? mesmo_vendedor : null]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
   res.json(result.rows[0]);

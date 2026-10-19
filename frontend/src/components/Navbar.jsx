@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [logoErr, setLogoErr] = useState(false);
 
   function handleLogout() {
     logout();
@@ -14,14 +16,20 @@ export default function Navbar() {
   const isGerente = user?.role === 'gerente';
 
   return (
-    <nav className="bg-brand-red text-white px-4 py-3 flex items-center justify-between">
+    <nav className="bg-[#812f28] text-white px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-6">
-        <span className="font-bold">Buonna Massa</span>
+        <div className="flex items-center gap-2">
+          {logoErr
+            ? <span className="font-bold text-white" style={{ fontFamily: 'Besley, Georgia, serif' }}>Buonna Massa</span>
+            : <img src="/logo.png" alt="Buonna Massa" className="h-10 object-contain" onError={() => setLogoErr(true)} />
+          }
+        </div>
         <Link to="/contagem" className="text-sm hover:underline">Contagem</Link>
         {(isOwner || isGerente) && (
           <>
             <Link to="/produtos" className="text-sm hover:underline">Produtos</Link>
             <Link to="/historico" className="text-sm hover:underline">Histórico</Link>
+            <Link to="/conferencia-entrega" className="text-sm hover:underline">Conf. Entrega</Link>
           </>
         )}
         {isOwner && (
@@ -31,6 +39,7 @@ export default function Navbar() {
             <Link to="/fornecedores" className="text-sm hover:underline">Fornecedores</Link>
             <Link to="/usuarios" className="text-sm hover:underline">Usuários</Link>
             <Link to="/notificacoes" className="text-sm hover:underline">🔔 Notificações</Link>
+            <Link to="/conferencia-pedido" className="text-sm hover:underline">Conferência</Link>
           </>
         )}
       </div>

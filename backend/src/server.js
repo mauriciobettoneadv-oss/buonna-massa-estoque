@@ -10,6 +10,8 @@ const quotationRoutes = require('./routes/quotations');
 const userRoutes = require('./routes/users');
 const supplierRoutes = require('./routes/suppliers');
 const notificationRoutes = require('./routes/notifications');
+const conferenciaPedidoRoutes = require('./routes/conferenciaPedido');
+const conferenciaEntregaRoutes = require('./routes/conferenciaEntrega');
 
 const { startCronJobs, runHealthCheck } = require('./services/cronService');
 const { getQuotationByToken, saveQuotationByToken } = require('./controllers/supplierTokenController');
@@ -58,6 +60,8 @@ app.use('/api/quotations', quotationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/suppliers', supplierRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/conferencia-pedido', conferenciaPedidoRoutes);
+app.use('/api/conferencia-entrega', conferenciaEntregaRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
@@ -111,6 +115,29 @@ async function startServer() {
       ALTER TABLE quotations
         ADD COLUMN IF NOT EXISTS all_filled_notified BOOLEAN DEFAULT FALSE
     `);
+    await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'aberta'`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS conferencia_pedido (
+        id SERIAL PRIMARY KEY,
+        quotation_id INTEGER REFERENCES quotations(id),
+        criado_por INTEGER REFERENCES users(id),
+        criado_em TIMESTAMPTZ DEFAULT NOW(),
+        status TEXT DEFAULT 'aberta',
+        itens JSONB DEFAULT '[]'
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS conferencia_entrega (
+        id SERIAL PRIMARY KEY,
+        conferencia_pedido_id INTEGER REFERENCES conferencia_pedido(id),
+        conferente_id INTEGER REFERENCES users(id),
+        finalizado_em TIMESTAMPTZ,
+        status TEXT DEFAULT 'aberta',
+        itens JSONB DEFAULT '[]'
+      )
+    `);
+    await pool.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS canais_compra JSONB DEFAULT '[]'`);
+    await pool.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS mesmo_vendedor BOOLEAN DEFAULT FALSE`);
     console.log('[startup] Colunas de supplier token verificadas.');
   } catch (e) {
     console.error('[startup] Erro ao verificar colunas de supplier token:', e.message);

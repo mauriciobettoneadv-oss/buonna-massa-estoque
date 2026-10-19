@@ -32,6 +32,7 @@ export default function Products() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   async function loadProducts() {
     const data = await request('/products?includeInactive=true', { token });
@@ -114,6 +115,16 @@ export default function Products() {
 
       {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="🔍 Buscar produto..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 w-full max-w-sm text-sm focus:outline-none focus:border-brand-red"
+        />
+      </div>
+
       {showAddForm && (
         <form onSubmit={handleAdd} className="bg-white rounded-lg shadow p-4 mb-6 grid grid-cols-2 gap-3">
           <p className="col-span-2 text-sm font-semibold text-gray-600 border-b pb-2 mb-1">Novo Produto</p>
@@ -172,7 +183,7 @@ export default function Products() {
       )}
 
       <div className="bg-white rounded-lg shadow divide-y">
-        {products.map((p) => {
+        {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map((p) => {
           const isEditing = editingId === p.id;
           if (isEditing) {
             return (

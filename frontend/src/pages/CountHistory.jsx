@@ -161,19 +161,41 @@ export default function CountHistory() {
                         <thead>
                           <tr className="text-gray-500 border-b">
                             <th className="text-left pb-1">Produto</th>
-                            <th className="text-right pb-1">Tem</th>
-                            <th className="text-right pb-1">Comprar</th>
+                            <th className="text-right pb-1">Qtd Tem</th>
+                            <th className="text-right pb-1">Un. Tem</th>
+                            <th className="text-right pb-1">Qtd Comprar</th>
+                            <th className="text-right pb-1">Un. Comprar</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {itemsCache[c.id].filter((i) => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).map((item) => (
-                            <tr key={item.product_id} className="border-b border-gray-100">
-                              <td className="py-1 text-gray-700">{item.name}</td>
-                              <td className="text-right text-gray-600">{item.current_stock} {item.unit_measure}</td>
-                              <td className="text-right text-gray-600">{item.qty_to_buy} {item.purchase_unit || item.unit_measure}</td>
-                            </tr>
-                          ))}
+                          {itemsCache[c.id].filter((i) => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).map((item, idx) => {
+                            const isZero = Number(item.current_stock) === 0;
+                            const hasToBuy = Number(item.qty_to_buy) > 0;
+                            const rowCls = [
+                              idx % 2 === 1 ? 'even:bg-gray-50' : '',
+                              isZero ? 'text-gray-300' : '',
+                              hasToBuy ? 'bg-yellow-50' : '',
+                            ].filter(Boolean).join(' ');
+                            return (
+                              <tr key={item.product_id} className={`border-b border-gray-100 ${rowCls}`}>
+                                <td className="py-1 text-gray-700">{item.name}</td>
+                                <td className="text-right font-mono">{item.current_stock}</td>
+                                <td className="text-right text-gray-400 text-xs">{item.unit_measure}</td>
+                                <td className="text-right font-mono">{item.qty_to_buy}</td>
+                                <td className="text-right text-gray-400 text-xs">{item.purchase_unit || item.unit_measure}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
+                        <tfoot>
+                          <tr className="border-t text-gray-500 font-medium">
+                            <td className="pt-1" colSpan={5}>
+                              {itemsCache[c.id].filter(i => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).length} itens contados
+                              {' · '}
+                              {itemsCache[c.id].filter(i => Number(i.qty_to_buy) > 0).length} a comprar
+                            </td>
+                          </tr>
+                        </tfoot>
                       </table>
                     ) : null}
                   </div>
