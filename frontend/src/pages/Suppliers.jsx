@@ -27,6 +27,12 @@ function toggleItem(arr, item) {
   return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
 }
 
+function toArray(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
 export default function Suppliers() {
   const { token } = useAuth();
   const [view, setView] = useState('list'); // 'list' | 'detail'
@@ -298,7 +304,7 @@ export default function Suppliers() {
                       <input
                         type="checkbox"
                         checked={sup.categories?.includes(cat) || false}
-                        onChange={() => updateSupplierField('categories', toggleItem(sup.categories || [], cat))}
+                        onChange={() => updateSupplierField('categories', toggleItem(toArray(sup.categories), cat))}
                       />
                       {cat}
                     </label>
@@ -313,7 +319,7 @@ export default function Suppliers() {
                       <input
                         type="checkbox"
                         checked={sup.delivery_days?.includes(day) || false}
-                        onChange={() => updateSupplierField('delivery_days', toggleItem(sup.delivery_days || [], day))}
+                        onChange={() => updateSupplierField('delivery_days', toggleItem(toArray(sup.delivery_days), day))}
                       />
                       {day}
                     </label>
@@ -327,8 +333,8 @@ export default function Suppliers() {
                     <label key={u.id} className="flex items-center gap-1.5 text-sm cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={(sup.delivery_cities || []).includes(u.name)}
-                        onChange={() => updateSupplierField('delivery_cities', toggleItem(sup.delivery_cities || [], u.name))}
+                        checked={toArray(sup.delivery_cities).includes(u.name)}
+                        onChange={() => updateSupplierField('delivery_cities', toggleItem(toArray(sup.delivery_cities), u.name))}
                       />
                       {u.name}
                     </label>
@@ -342,8 +348,8 @@ export default function Suppliers() {
                     <label key={opt.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={(sup.canais_compra || []).includes(opt.value)}
-                        onChange={() => updateSupplierField('canais_compra', toggleItem(sup.canais_compra || [], opt.value))}
+                        checked={toArray(sup.canais_compra).includes(opt.value)}
+                        onChange={() => updateSupplierField('canais_compra', toggleItem(toArray(sup.canais_compra), opt.value))}
                       />
                       {opt.value}
                     </label>
@@ -881,10 +887,10 @@ export default function Suppliers() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {(s.categories || []).map(c => (
+                  {toArray(s.categories).map(c => (
                     <span key={c} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c}</span>
                   ))}
-                  {(s.canais_compra || []).map(c => {
+                  {toArray(s.canais_compra).map(c => {
                     const opt = CANAIS_COMPRA_OPTIONS.find(o => o.value === c);
                     return <span key={c} className={`text-xs px-2 py-0.5 rounded-full ${opt ? opt.color : 'bg-gray-100 text-gray-600'}`}>{c}</span>;
                   })}
