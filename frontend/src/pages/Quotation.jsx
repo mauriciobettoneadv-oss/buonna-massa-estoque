@@ -651,6 +651,24 @@ export default function Quotation() {
     }
   }
 
+  async function handleAddAllSuppliers() {
+    if (!globalSuppliers.length) return;
+    const alreadyIds = new Set((data?.suppliers || []).map((s) => s.supplier_id));
+    const toAdd = globalSuppliers.filter((s) => !alreadyIds.has(s.id));
+    if (!toAdd.length) { setError('Todos os fornecedores já estão nesta cotação.'); return; }
+    setAddingSupplier(true);
+    try {
+      for (const s of toAdd) {
+        await request(`/quotations/${selectedId}/suppliers`, { method: 'POST', token, body: { name: s.name, supplier_id: s.id } });
+      }
+      await loadQuotation(selectedId);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setAddingSupplier(false);
+    }
+  }
+
   function handleTokenGenerated(supplierId, updatedSupplier) {
     setData((prev) => ({
       ...prev,
@@ -874,6 +892,15 @@ export default function Quotation() {
               >
                 + Adicionar Fornecedor
               </button>
+              {globalSuppliers.length > 0 && (
+                <button
+                  onClick={handleAddAllSuppliers}
+                  disabled={addingSupplier}
+                  className="border border-brand-red text-brand-red rounded-lg px-4 py-2 text-sm hover:bg-brand-red hover:text-white disabled:opacity-50"
+                >
+                  {addingSupplier ? 'Adicionando...' : '+ Adicionar todos'}
+                </button>
+              )}
             </div>
           )}
 
