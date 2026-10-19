@@ -62,6 +62,9 @@ export default function Suppliers() {
       setProducts(p.filter ? p.filter(x => x.active !== false) : p);
       setUnits(u);
       setLoading(false);
+    }).catch((err) => {
+      setError(err.message || 'Erro ao carregar fornecedores.');
+      setLoading(false);
     });
   }, [token]);
 
@@ -210,6 +213,7 @@ export default function Suppliers() {
   }, {});
 
   if (loading) return <div className="p-8 text-center text-gray-500">Carregando...</div>;
+  if (error && !suppliers.length) return <div className="p-8 text-center text-red-600">{error}</div>;
 
   // ── DETAIL VIEW ──
   if (view === 'detail' && selected) {
