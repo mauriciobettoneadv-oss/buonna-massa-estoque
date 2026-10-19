@@ -182,109 +182,104 @@ export default function Products() {
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow divide-y">
-        {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map((p) => {
-          const isEditing = editingId === p.id;
-          if (isEditing) {
-            return (
-              <div key={p.id} style={{ borderLeft: '3px solid #ee4723', background: '#fffbea' }} className="p-3">
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div>
-                    <label className="text-xs text-gray-500">Nome</label>
-                    <input value={editForm.name}
-                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Categoria</label>
-                    <select value={editForm.category}
-                      onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                      className={inputCls}>
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Un. de contagem</label>
-                    <input value={editForm.unit_measure}
-                      onChange={(e) => setEditForm({ ...editForm, unit_measure: e.target.value })}
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Un. de compra</label>
-                    <input value={editForm.purchase_unit}
-                      onChange={(e) => setEditForm({ ...editForm, purchase_unit: e.target.value })}
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Estoque mínimo</label>
-                    <input type="number" step="0.01" value={editForm.min_stock}
-                      onChange={(e) => setEditForm({ ...editForm, min_stock: e.target.value })}
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Fornecedor</label>
-                    <input value={editForm.supplier}
-                      onChange={(e) => setEditForm({ ...editForm, supplier: e.target.value })}
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Qtd/caixa</label>
-                    <input type="number" step="1" min="1" value={editForm.box_qty}
-                      onChange={(e) => setEditForm({ ...editForm, box_qty: e.target.value })}
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Peso/vol por unidade</label>
-                    <input type="number" step="0.001" min="0" value={editForm.box_unit_weight}
-                      onChange={(e) => setEditForm({ ...editForm, box_unit_weight: e.target.value })}
-                      className={inputCls} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Preço por</label>
-                    <select value={editForm.price_unit}
-                      onChange={(e) => setEditForm({ ...editForm, price_unit: e.target.value })}
-                      className={inputCls}>
-                      <option value="">— selecione —</option>
-                      {PRICE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <button onClick={() => handleSaveEdit(p.id)}
-                    className="bg-green-600 text-white rounded px-3 py-1 text-sm font-medium hover:opacity-90">
-                    ✓ Salvar
-                  </button>
-                  <button onClick={cancelEdit}
-                    className="bg-gray-200 text-gray-700 rounded px-3 py-1 text-sm font-medium hover:bg-gray-300">
-                    ✗ Cancelar
-                  </button>
-                </div>
-              </div>
-            );
-          }
-          return (
-            <div key={p.id} className="flex items-center gap-3 p-3">
-              <div className="flex-1">
-                <p className={p.active ? '' : 'line-through text-gray-400'}>
-                  {p.name} — {p.category} — conta em {p.unit_measure}, compra em {p.purchase_unit} — mín: {p.min_stock}
-                </p>
-                {(p.box_qty || p.price_unit) && (
-                  <p className="text-xs text-blue-600 mt-0.5">
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+              <th className="text-left px-3 py-2">Produto</th>
+              <th className="text-left px-3 py-2 hidden sm:table-cell">Categoria</th>
+              <th className="text-left px-3 py-2">Un. Contagem</th>
+              <th className="text-left px-3 py-2 hidden md:table-cell">Un. Compra</th>
+              <th className="text-left px-3 py-2 hidden md:table-cell">Mín.</th>
+              <th className="text-left px-3 py-2 hidden lg:table-cell">Caixa</th>
+              <th className="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {products.filter(p => p.name.toLowerCase().includes(search.toLowerCase())).map((p) => {
+              const isEditing = editingId === p.id;
+              if (isEditing) {
+                return (
+                  <tr key={p.id} style={{ background: '#fffbea', borderLeft: '3px solid #ee4723' }}>
+                    <td colSpan={7} className="p-3">
+                      <div className="grid grid-cols-2 gap-2 mb-2 sm:grid-cols-3">
+                        <div>
+                          <label className="text-xs text-gray-500">Nome</label>
+                          <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Categoria</label>
+                          <select value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className={inputCls}>
+                            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Un. contagem</label>
+                          <input value={editForm.unit_measure} onChange={(e) => setEditForm({ ...editForm, unit_measure: e.target.value })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Un. compra</label>
+                          <input value={editForm.purchase_unit} onChange={(e) => setEditForm({ ...editForm, purchase_unit: e.target.value })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Estoque mínimo</label>
+                          <input type="number" step="0.01" value={editForm.min_stock} onChange={(e) => setEditForm({ ...editForm, min_stock: e.target.value })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Fornecedor</label>
+                          <input value={editForm.supplier} onChange={(e) => setEditForm({ ...editForm, supplier: e.target.value })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Qtd/caixa</label>
+                          <input type="number" step="1" min="1" value={editForm.box_qty} onChange={(e) => setEditForm({ ...editForm, box_qty: e.target.value })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Peso/vol por un.</label>
+                          <input type="number" step="0.001" min="0" value={editForm.box_unit_weight} onChange={(e) => setEditForm({ ...editForm, box_unit_weight: e.target.value })} className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Preço por</label>
+                          <select value={editForm.price_unit} onChange={(e) => setEditForm({ ...editForm, price_unit: e.target.value })} className={inputCls}>
+                            <option value="">— selecione —</option>
+                            {PRICE_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleSaveEdit(p.id)} className="bg-green-600 text-white rounded px-3 py-1 text-sm font-medium hover:opacity-90">✓ Salvar</button>
+                        <button onClick={cancelEdit} className="bg-gray-200 text-gray-700 rounded px-3 py-1 text-sm font-medium hover:bg-gray-300">✗ Cancelar</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+              return (
+                <tr key={p.id} className={`hover:bg-gray-50 ${!p.active ? 'opacity-50' : ''}`}>
+                  <td className="px-3 py-2">
+                    <span className={p.active ? 'font-medium text-gray-800' : 'line-through text-gray-400'}>{p.name}</span>
+                    {p.supplier && <p className="text-xs text-gray-400">{p.supplier}</p>}
+                  </td>
+                  <td className="px-3 py-2 text-gray-500 hidden sm:table-cell">{p.category}</td>
+                  <td className="px-3 py-2 text-gray-600">{p.unit_measure}</td>
+                  <td className="px-3 py-2 text-gray-600 hidden md:table-cell">{p.purchase_unit}</td>
+                  <td className="px-3 py-2 text-gray-600 hidden md:table-cell">{p.min_stock}</td>
+                  <td className="px-3 py-2 text-xs text-blue-600 hidden lg:table-cell">
                     {p.box_qty && p.box_unit_weight
-                      ? `📦 Caixa: ${p.box_qty} un × ${p.box_unit_weight} = ${(Number(p.box_qty) * Number(p.box_unit_weight)).toFixed(3)}`
-                      : p.box_qty ? `📦 ${p.box_qty} un/caixa` : ''}
-                    {p.price_unit ? ` · Preço por ${p.price_unit}` : ''}
-                  </p>
-                )}
-                {p.supplier && <p className="text-xs text-gray-400">{p.supplier}</p>}
-              </div>
-              <button onClick={() => startEdit(p)} className="text-sm text-brand-red hover:underline">Editar</button>
-              <button onClick={() => toggleActive(p)} className="text-sm hover:underline">
-                {p.active ? 'Desativar' : 'Reativar'}
-              </button>
-            </div>
-          );
-        })}
+                      ? `${p.box_qty}un × ${p.box_unit_weight} = ${(Number(p.box_qty) * Number(p.box_unit_weight)).toFixed(2)}`
+                      : p.box_qty ? `${p.box_qty} un/cx` : '—'}
+                    {p.price_unit ? ` · ${p.price_unit}` : ''}
+                  </td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <button onClick={() => startEdit(p)} className="text-sm text-brand-red hover:underline mr-3">Editar</button>
+                    <button onClick={() => toggleActive(p)} className="text-sm text-gray-400 hover:underline">
+                      {p.active ? 'Desativar' : 'Reativar'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
