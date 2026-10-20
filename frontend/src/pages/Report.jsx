@@ -22,6 +22,9 @@ export default function Report() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [finalized, setFinalized] = useState(false);
+  const [historyTab, setHistoryTab] = useState('contagens'); // 'contagens' | 'compras'
+  const [quotations, setQuotations] = useState([]);
+  const [quotationsLoading, setQuotationsLoading] = useState(false);
 
   useEffect(() => {
     if (!countId) {
@@ -30,6 +33,11 @@ export default function Report() {
         .then(setHistory)
         .catch(err => setError(err.message))
         .finally(() => setHistoryLoading(false));
+      setQuotationsLoading(true);
+      request('/quotations', { token })
+        .then(list => setQuotations(list.filter(q => q.status === 'fechada')))
+        .catch(() => {})
+        .finally(() => setQuotationsLoading(false));
       return;
     }
     setLoading(true);
@@ -126,58 +134,104 @@ export default function Report() {
       <div className="max-w-3xl mx-auto p-4">
         <h1 className="text-xl font-bold text-brand-red mb-4">Relatório de Compras</h1>
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-        {historyLoading && <p className="text-gray-500">Carregando contagens...</p>}
 
-        {saved.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">Contagens aguardando finalização</h2>
-            <div className="space-y-2">
-              {saved.map(c => (
-                <div
-                  key={c.id}
-                  className="bg-white border border-yellow-300 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:border-brand-red hover:shadow-sm transition-all"
-                  onClick={() => setSearchParams({ countId: c.id })}
-                >
-                  <div>
-                    <p className="font-medium text-gray-800">{c.unit_name}</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.items_to_buy} itens a comprar
-                      {c.saved_by_name && ` · salva por ${c.saved_by_name}`}
-                    </p>
-                  </div>
-                  <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full">Salva</span>
+        {/* Tabs */}
+        <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setHistoryTab('contagens')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${historyTab === 'contagens' ? 'bg-white text-brand-red shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            Contagens
+          </button>
+          <button
+            onClick={() => setHistoryTab('compras')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${historyTab === 'compras' ? 'bg-white text-brand-red shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+          >
+            Pedidos de Compra
+          </button>
+        </div>
+
+        {historyTab === 'contagens' && (
+          <>
+            {historyLoading && <p className="text-gray-500">Carregando contagens...</p>}
+            {saved.length > 0 && (
+              <div className="mb-6">
+                <h2 className="text-sm font-semibold text-gray-700 mb-2">Contagens aguardando finalização</h2>
+                <div className="space-y-2">
+                  {saved.map(c => (
+                    <div
+                      key={c.id}
+                      className="bg-white border border-yellow-300 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:border-brand-red hover:shadow-sm transition-all"
+                      onClick={() => setSearchParams({ countId: c.id })}
+                    >
+                      <div>
+                        <p className="font-medium text-gray-800">{c.unit_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.items_to_buy} itens a comprar
+                          {c.saved_by_name && ` · salva por ${c.saved_by_name}`}
+                        </p>
+                      </div>
+                      <span className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full">Salva</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            )}
+            {finalized.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700 mb-2">Contagens finalizadas</h2>
+                <div className="space-y-2">
+                  {finalized.map(c => (
+                    <div
+                      key={c.id}
+                      className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:border-brand-red hover:shadow-sm transition-all"
+                      onClick={() => setSearchParams({ countId: c.id })}
+                    >
+                      <div>
+                        <p className="font-medium text-gray-800">{c.unit_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.items_to_buy} itens
+                          {c.finalized_by_name && ` · finalizada por ${c.finalized_by_name}`}
+                        </p>
+                      </div>
+                      <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">Finalizada</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!historyLoading && saved.length === 0 && finalized.length === 0 && (
+              <p className="text-gray-400 text-center py-8">Nenhuma contagem salva ou finalizada encontrada.</p>
+            )}
+          </>
         )}
 
-        {finalized.length > 0 && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-700 mb-2">Contagens finalizadas</h2>
-            <div className="space-y-2">
-              {finalized.map(c => (
-                <div
-                  key={c.id}
-                  className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:border-brand-red hover:shadow-sm transition-all"
-                  onClick={() => setSearchParams({ countId: c.id })}
-                >
-                  <div>
-                    <p className="font-medium text-gray-800">{c.unit_name}</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(c.created_at).toLocaleDateString('pt-BR')} · {c.items_to_buy} itens
-                      {c.finalized_by_name && ` · finalizada por ${c.finalized_by_name}`}
-                    </p>
+        {historyTab === 'compras' && (
+          <>
+            {quotationsLoading && <p className="text-gray-500">Carregando pedidos...</p>}
+            {!quotationsLoading && quotations.length === 0 && (
+              <p className="text-gray-400 text-center py-8">Nenhum pedido de compra fechado encontrado.</p>
+            )}
+            {quotations.length > 0 && (
+              <div className="space-y-2">
+                {quotations.map(q => (
+                  <div
+                    key={q.id}
+                    className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-800">Cotação #{q.id}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(q.created_at).toLocaleDateString('pt-BR')}
+                        {q.units?.filter(Boolean).length > 0 && ` · ${q.units.filter(Boolean).join(', ')}`}
+                      </p>
+                    </div>
+                    <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">Fechada</span>
                   </div>
-                  <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">Finalizada</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!historyLoading && saved.length === 0 && finalized.length === 0 && (
-          <p className="text-gray-400 text-center py-8">Nenhuma contagem salva ou finalizada encontrada.</p>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     );

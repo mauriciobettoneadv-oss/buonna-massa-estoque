@@ -21,6 +21,7 @@ const EMPTY_SUPPLIER = {
   delivery_cities: [],
   notes: '',
   canais_compra: [],
+  canal_preferencial: '',
 };
 
 function toggleItem(arr, item) {
@@ -110,6 +111,7 @@ export default function Suppliers() {
         min_order: form.min_order !== '' ? Number(form.min_order) : 0,
         delivery_cities: form.delivery_cities || [],
         canais_compra: form.canais_compra || [],
+        canal_preferencial: form.canal_preferencial || null,
       };
       const created = await request('/suppliers', { method: 'POST', body, token });
       setSuppliers([...suppliers, { ...created, product_count: '0' }]);
@@ -135,6 +137,7 @@ export default function Suppliers() {
         delivery_cities: selected.supplier.delivery_cities || [],
         notes: selected.supplier.notes,
         canais_compra: selected.supplier.canais_compra || [],
+        canal_preferencial: selected.supplier.canal_preferencial || null,
         mesmo_vendedor: mesmoVendedor,
       };
       const updated = await request(`/suppliers/${selected.supplier.id}`, { method: 'PUT', body, token });
@@ -343,18 +346,42 @@ export default function Suppliers() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Canal de compra</label>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-3 mb-2">
                   {CANAIS_COMPRA_OPTIONS.map(opt => (
                     <label key={opt.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
                       <input
                         type="checkbox"
                         checked={toArray(sup.canais_compra).includes(opt.value)}
-                        onChange={() => updateSupplierField('canais_compra', toggleItem(toArray(sup.canais_compra), opt.value))}
+                        onChange={() => {
+                          const updated = toggleItem(toArray(sup.canais_compra), opt.value);
+                          updateSupplierField('canais_compra', updated);
+                          if (!updated.includes(sup.canal_preferencial)) {
+                            updateSupplierField('canal_preferencial', updated[0] || '');
+                          }
+                        }}
                       />
                       {opt.value}
                     </label>
                   ))}
                 </div>
+                {toArray(sup.canais_compra).length > 1 && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Canal preferencial</p>
+                    <div className="flex flex-wrap gap-3">
+                      {toArray(sup.canais_compra).map(ch => (
+                        <label key={ch} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input
+                            type="radio"
+                            name="canal_preferencial_edit"
+                            checked={sup.canal_preferencial === ch}
+                            onChange={() => updateSupplierField('canal_preferencial', ch)}
+                          />
+                          {ch}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
@@ -438,7 +465,12 @@ export default function Suppliers() {
                   <div className="flex flex-wrap gap-1">
                     {sup.canais_compra.map(c => {
                       const opt = CANAIS_COMPRA_OPTIONS.find(o => o.value === c);
-                      return <span key={c} className={`text-xs px-2 py-0.5 rounded-full ${opt ? opt.color : 'bg-gray-100 text-gray-600'}`}>{c}</span>;
+                      const isPref = sup.canal_preferencial === c;
+                      return (
+                        <span key={c} className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${opt ? opt.color : 'bg-gray-100 text-gray-600'}`}>
+                          {c}{isPref && <span title="Preferencial">★</span>}
+                        </span>
+                      );
                     })}
                   </div>
                 </div>
@@ -488,7 +520,7 @@ export default function Suppliers() {
                         name: sup.name, categories: sup.categories, phone: sup.phone, email: sup.email,
                         min_order: sup.min_order, delivery_days: sup.delivery_days,
                         delivery_cities: sup.delivery_cities || [], notes: sup.notes,
-                        canais_compra: sup.canais_compra || [], mesmo_vendedor: val,
+                        canais_compra: sup.canais_compra || [], canal_preferencial: sup.canal_preferencial || null, mesmo_vendedor: val,
                       },
                       token,
                     });
@@ -831,18 +863,40 @@ export default function Suppliers() {
           </div>
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Canal de compra</label>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 mb-2">
               {CANAIS_COMPRA_OPTIONS.map(opt => (
                 <label key={opt.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
                   <input
                     type="checkbox"
                     checked={(form.canais_compra || []).includes(opt.value)}
-                    onChange={() => setForm({ ...form, canais_compra: toggleItem(form.canais_compra || [], opt.value) })}
+                    onChange={() => {
+                      const updated = toggleItem(form.canais_compra || [], opt.value);
+                      const pref = updated.includes(form.canal_preferencial) ? form.canal_preferencial : (updated[0] || '');
+                      setForm({ ...form, canais_compra: updated, canal_preferencial: pref });
+                    }}
                   />
                   {opt.value}
                 </label>
               ))}
             </div>
+            {(form.canais_compra || []).length > 1 && (
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Canal preferencial</p>
+                <div className="flex flex-wrap gap-3">
+                  {(form.canais_compra || []).map(ch => (
+                    <label key={ch} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="canal_preferencial_create"
+                        checked={form.canal_preferencial === ch}
+                        onChange={() => setForm({ ...form, canal_preferencial: ch })}
+                      />
+                      {ch}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
@@ -892,7 +946,8 @@ export default function Suppliers() {
                   ))}
                   {toArray(s.canais_compra).map(c => {
                     const opt = CANAIS_COMPRA_OPTIONS.find(o => o.value === c);
-                    return <span key={c} className={`text-xs px-2 py-0.5 rounded-full ${opt ? opt.color : 'bg-gray-100 text-gray-600'}`}>{c}</span>;
+                    const isPref = s.canal_preferencial === c;
+                    return <span key={c} className={`text-xs px-2 py-0.5 rounded-full ${opt ? opt.color : 'bg-gray-100 text-gray-600'}`}>{c}{isPref ? ' ★' : ''}</span>;
                   })}
                 </div>
                 <div className="flex gap-4 mt-2 text-sm text-gray-500 flex-wrap">
