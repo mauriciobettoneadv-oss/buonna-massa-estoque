@@ -1,0 +1,17 @@
+{
+  "name": "Buonna Massa Estoque",
+  "short_name": "BM Estoque",
+  "description": "Sistema de controle de estoque - Pizzaria Buonna Massa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#812f28",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
