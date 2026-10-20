@@ -138,6 +138,9 @@ async function startServer() {
     `);
     await pool.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS canais_compra JSONB DEFAULT '[]'`);
     await pool.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS mesmo_vendedor BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock_sao_pedro NUMERIC DEFAULT 0`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock_piracicaba NUMERIC DEFAULT 0`);
+    await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_per_package NUMERIC`);
     console.log('[startup] Colunas de supplier token verificadas.');
   } catch (e) {
     console.error('[startup] Erro ao verificar colunas de supplier token:', e.message);
