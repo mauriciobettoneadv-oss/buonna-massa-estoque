@@ -39,7 +39,7 @@ export default function Navbar() {
             <Link to="/fornecedores" className="text-sm hover:underline">Fornecedores</Link>
             <Link to="/usuarios" className="text-sm hover:underline">Usuários</Link>
             <Link to="/notificacoes" className="text-sm hover:underline">🔔 Notificações</Link>
-            <Link to="/conferencia-pedido" className="text-sm hover:underline">Conferência</Link>
+            <Link to="/conferencia-pedido" className="text-sm hover:underline">Conf. Pedido</Link>
           </>
         )}
       </div>
