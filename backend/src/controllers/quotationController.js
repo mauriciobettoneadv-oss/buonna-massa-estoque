@@ -192,31 +192,47 @@ async function getOrders(req, res) {
     [id]
   );
 
-  // Best price per product: lowest unit_price among all suppliers
-  const bestPrices = await pool.query(
-    `SELECT qp.product_id,
-            MIN(qp.unit_price) AS best_price,
-            (SELECT qs2.name FROM quotation_prices qp2
-             JOIN quotation_suppliers qs2 ON qs2.id = qp2.supplier_id
-             WHERE qp2.product_id = qp.product_id
-               AND qs2.quotation_id = $1
-               AND qp2.unit_price > 0
-             ORDER BY qp2.unit_price ASC LIMIT 1) AS supplier_name
-     FROM quotation_prices qp
-     JOIN quotation_suppliers qs ON qs.id = qp.supplier_id
-     WHERE qs.quotation_id = $1 AND qp.unit_price > 0
-     GROUP BY qp.product_id`,
-    [id]
-  );
-
-  const bestMap = {};
-  for (const row of bestPrices.rows) {
-    bestMap[row.product_id] = { best_price: Number(row.best_price), supplier_name: row.supplier_name };
-  }
-
-  // Build orders per unit
+  // Build orders per unit — best price filtered by supplier delivery_cities
   const orders = [];
   for (const count of counts.rows) {
+    // Best price per product considering only suppliers who deliver to this unit's city
+    // Suppliers with empty delivery_cities deliver everywhere (no restriction)
+    const bestPrices = await pool.query(
+      `SELECT qp.product_id,
+              MIN(qp.unit_price) AS best_price,
+              (SELECT qs2.name FROM quotation_prices qp2
+               JOIN quotation_suppliers qs2 ON qs2.id = qp2.supplier_id
+               LEFT JOIN suppliers s2 ON s2.id = qs2.supplier_id
+               WHERE qp2.product_id = qp.product_id
+                 AND qs2.quotation_id = $1
+                 AND qp2.unit_price > 0
+                 AND (
+                   s2.delivery_cities IS NULL
+                   OR array_length(s2.delivery_cities, 1) IS NULL
+                   OR s2.delivery_cities = '{}'
+                   OR $2 = ANY(s2.delivery_cities)
+                 )
+               ORDER BY qp2.unit_price ASC LIMIT 1) AS supplier_name
+       FROM quotation_prices qp
+       JOIN quotation_suppliers qs ON qs.id = qp.supplier_id
+       LEFT JOIN suppliers s ON s.id = qs.supplier_id
+       WHERE qs.quotation_id = $1
+         AND qp.unit_price > 0
+         AND (
+           s.delivery_cities IS NULL
+           OR array_length(s.delivery_cities, 1) IS NULL
+           OR s.delivery_cities = '{}'
+           OR $2 = ANY(s.delivery_cities)
+         )
+       GROUP BY qp.product_id`,
+      [id, count.unit_name]
+    );
+
+    const bestMap = {};
+    for (const row of bestPrices.rows) {
+      bestMap[row.product_id] = { best_price: Number(row.best_price), supplier_name: row.supplier_name };
+    }
+
     const items = await pool.query(
       `SELECT p.id AS product_id, p.name, p.category, p.purchase_unit, sci.qty_to_buy
        FROM stock_count_items sci
