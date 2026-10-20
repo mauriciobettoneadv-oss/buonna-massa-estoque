@@ -21,7 +21,7 @@ export default function Navbar() {
         <div className="flex items-center gap-2">
           {logoErr
             ? <span className="font-bold text-white" style={{ fontFamily: 'Besley, Georgia, serif' }}>Buonna Massa</span>
-            : <img src="/logo.png" alt="Buonna Massa" className="h-10 object-contain" onError={() => setLogoErr(true)} />
+            : <img src="/logo.png.jpg" alt="Buonna Massa" className="h-10 object-contain rounded" onError={() => setLogoErr(true)} />
           }
         </div>
         <Link to="/contagem" className="text-sm hover:underline">Contagem</Link>
