@@ -23,6 +23,7 @@ export default function ConferenciaPedido() {
   // AI extraction
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');
+  const [extractInfo, setExtractInfo] = useState(null);
 
   // History
   const [conferencias, setConferencias] = useState([]);
@@ -105,6 +106,7 @@ export default function ConferenciaPedido() {
     const file = e.target.files?.[0];
     if (!file) return;
     setExtractError('');
+    setExtractInfo(null);
     setExtracting(true);
     try {
       const buffer = await file.arrayBuffer();
@@ -118,8 +120,13 @@ export default function ConferenciaPedido() {
         body: { image_base64: base64, image_type: file.type, itens },
       });
       setItens(result.itens);
+      setExtractInfo({
+        matched: result.matches?.length || 0,
+        nao_identificados: result.nao_identificados || [],
+        via_pdf_text: result.via_pdf_text,
+      });
     } catch (err) {
-      setExtractError(err.message || 'Erro ao processar imagem.');
+      setExtractError(err.message || 'Erro ao processar arquivo.');
     } finally {
       setExtracting(false);
       e.target.value = '';
@@ -149,6 +156,7 @@ export default function ConferenciaPedido() {
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-xl font-bold text-brand-red mb-4">Conferência de Pedido</h1>
+      <p className="text-sm text-gray-500 mb-4">Verifique se o pedido lançado pelo vendedor está de acordo com o que você solicitou na cotação. Importe o espelho do pedido (PDF ou foto) para preencher automaticamente.</p>
 
       {/* Select quotation */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -191,12 +199,11 @@ export default function ConferenciaPedido() {
                 </span>
               )}
               <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer border transition-colors ${extracting ? 'border-gray-300 text-gray-400 cursor-not-allowed' : 'border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white'}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                {extracting ? 'Processando...' : 'Preencher com foto da nota'}
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                {extracting ? 'Processando espelho...' : 'Importar espelho do pedido'}
                 <input
                   type="file"
-                  accept="image/*"
-                  capture="environment"
+                  accept="image/*,application/pdf"
                   className="hidden"
                   disabled={extracting}
                   onChange={handleExtractFromImage}
@@ -204,7 +211,15 @@ export default function ConferenciaPedido() {
               </label>
             </div>
           </div>
-          {extractError && <p className="text-red-600 text-sm mb-3">{extractError}</p>}
+          {extractError && <p className="text-red-600 text-sm mb-3">⚠️ {extractError}</p>}
+          {extractInfo && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 mb-3 text-sm text-blue-800">
+              ✅ Espelho processado {extractInfo.via_pdf_text ? '(texto do PDF)' : '(imagem)'} — {extractInfo.matched} itens identificados automaticamente.
+              {extractInfo.nao_identificados.length > 0 && (
+                <span className="ml-1 text-blue-600">· {extractInfo.nao_identificados.length} item(s) do espelho não encontrado(s) no nosso sistema.</span>
+              )}
+            </div>
+          )}
 
           {savedId && (
             <div className="bg-green-50 border border-green-300 rounded-lg px-4 py-3 mb-4 text-sm text-green-800">
