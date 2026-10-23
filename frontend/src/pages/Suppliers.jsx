@@ -50,6 +50,7 @@ export default function Suppliers() {
   const [savingPrice, setSavingPrice] = useState({}); // product_id -> bool
   const [unitContacts, setUnitContacts] = useState({}); // unit_id -> contact fields
   const [savingContact, setSavingContact] = useState({}); // unit_id -> bool
+  const [savedContactToast, setSavedContactToast] = useState(null); // unit_id
   const [expandedUnit, setExpandedUnit] = useState(null);
   const [mesmoVendedor, setMesmoVendedor] = useState(false);
   const [error, setError] = useState('');
@@ -207,6 +208,8 @@ export default function Suppliers() {
         body: { unit_id: unitId, ...contact },
         token,
       });
+      setSavedContactToast(unitId);
+      setTimeout(() => setSavedContactToast(null), 2500);
     } catch (err) {
       setError(err.message || 'Erro ao salvar contato.');
     } finally {
@@ -678,6 +681,11 @@ export default function Suppliers() {
                       >
                         {isSaving ? 'Salvando...' : 'Salvar contato'}
                       </button>
+                      {savedContactToast === unit.id && (
+                        <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg font-medium">
+                          ✅ Contato salvo!
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
