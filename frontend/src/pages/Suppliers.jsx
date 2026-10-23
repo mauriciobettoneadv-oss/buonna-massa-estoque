@@ -271,23 +271,6 @@ export default function Suppliers() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    value={sup.phone || ''}
-                    onChange={e => updateSupplierField('phone', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
-                  <input
-                    type="email"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    value={sup.email || ''}
-                    onChange={e => updateSupplierField('email', e.target.value)}
-                  />
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Pedido mínimo (R$)</label>
                   <input
                     type="number"
@@ -411,14 +394,6 @@ export default function Suppliers() {
             </form>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Telefone</p>
-                <p className="font-medium">{sup.phone || '—'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">E-mail</p>
-                <p className="font-medium">{sup.email || '—'}</p>
-              </div>
               <div>
                 <p className="text-gray-500">Pedido mínimo</p>
                 <p className="font-medium">{sup.min_order > 0 ? `R$ ${Number(sup.min_order).toFixed(2)}` : '—'}</p>
