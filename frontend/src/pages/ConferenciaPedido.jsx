@@ -243,18 +243,18 @@ export default function ConferenciaPedido() {
 
           <div className="space-y-6 mb-6">
             {Object.entries(porFornecedor).map(([fornecedor, items]) => (
-              <div key={fornecedor}>
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">{fornecedor}</h3>
-                  <span className="text-xs text-gray-400">{items.length} produto{items.length !== 1 ? 's' : ''}</span>
+              <div key={fornecedor} className="border border-gray-300 rounded-xl overflow-hidden shadow-sm">
+                <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 border-b border-gray-300">
+                  <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">🏭 {fornecedor}</span>
+                  <span className="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">{items.length} produto{items.length !== 1 ? 's' : ''}</span>
                 </div>
-                <div className="space-y-2">
+                <div className="divide-y divide-gray-100">
                   {items.map((item) => {
                     const div = isDivergente(item);
                     return (
                       <div
                         key={item.product_id}
-                        className={`bg-white rounded-lg shadow-sm border p-4 ${item.conferido && div ? 'border-red-300 bg-red-50/40' : 'border-gray-200'}`}
+                        className={`p-4 ${item.conferido && div ? 'bg-red-50/40' : 'bg-white'}`}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <span className="font-semibold text-gray-800">{item.name}</span>
