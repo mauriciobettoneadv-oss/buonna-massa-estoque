@@ -26,20 +26,26 @@ export default function Navbar() {
         </div>
         <Link to="/contagem" className="text-sm hover:underline">Contagem</Link>
         {(isOwner || isGerente) && (
+          <Link to="/historico" className="text-sm hover:underline">Histórico</Link>
+        )}
+        {isOwner && (
           <>
+            <Link to="/cotacao" className="text-sm hover:underline">Cotação</Link>
+            <Link to="/conferencia-pedido" className="text-sm hover:underline">Conf. Pedido</Link>
+          </>
+        )}
+        {(isOwner || isGerente) && (
+          <>
+            <Link to="/conferencia-entrega" className="text-sm hover:underline">Recebimento</Link>
             <Link to="/produtos" className="text-sm hover:underline">Produtos</Link>
-            <Link to="/historico" className="text-sm hover:underline">Histórico</Link>
-            <Link to="/conferencia-entrega" className="text-sm hover:underline">Conf. Entrega</Link>
           </>
         )}
         {isOwner && (
           <>
-            <Link to="/relatorio" className="text-sm hover:underline">Relatório</Link>
-            <Link to="/cotacao" className="text-sm hover:underline">Cotação</Link>
             <Link to="/fornecedores" className="text-sm hover:underline">Fornecedores</Link>
+            <Link to="/relatorio" className="text-sm hover:underline">Relatório</Link>
             <Link to="/usuarios" className="text-sm hover:underline">Usuários</Link>
             <Link to="/notificacoes" className="text-sm hover:underline">🔔 Notificações</Link>
-            <Link to="/conferencia-pedido" className="text-sm hover:underline">Conf. Pedido</Link>
           </>
         )}
       </div>
