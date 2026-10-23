@@ -930,9 +930,12 @@ export default function Suppliers() {
                   {s.delivery_days?.length > 0 && (
                     <span>Entrega: {s.delivery_days.join(', ')}</span>
                   )}
-                  {s.delivery_cities?.length > 0 && (
-                    <span>📍 {s.delivery_cities.join(', ')}</span>
-                  )}
+                  {(() => {
+                    const cities = s.delivery_cities?.length > 0
+                      ? s.delivery_cities
+                      : (s.contact_cities?.length > 0 ? s.contact_cities : []);
+                    return cities.length > 0 ? <span>📍 {cities.join(', ')}</span> : null;
+                  })()}
                   {s.min_order > 0 && (
                     <span>Mín: R$ {Number(s.min_order).toFixed(2)}</span>
                   )}

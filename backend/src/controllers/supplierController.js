@@ -3,9 +3,13 @@ const pool = require('../db/pool');
 async function listSuppliers(req, res) {
   const result = await pool.query(
     `SELECT s.*,
-            COUNT(spp.id) AS product_count
+            COUNT(spp.id) AS product_count,
+            array_agg(DISTINCT u.name) FILTER (WHERE u.name IS NOT NULL) AS contact_cities,
+            array_agg(DISTINCT suc.delivery_days) FILTER (WHERE suc.delivery_days IS NOT NULL AND suc.delivery_days <> '{}') AS contact_delivery_days
      FROM suppliers s
      LEFT JOIN supplier_product_prices spp ON spp.supplier_id = s.id
+     LEFT JOIN supplier_unit_contacts suc ON suc.supplier_id = s.id
+     LEFT JOIN units u ON u.id = suc.unit_id
      GROUP BY s.id ORDER BY s.name`
   );
   res.json(result.rows);
