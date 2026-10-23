@@ -81,6 +81,7 @@ export default function ConferenciaPedido() {
           supplier_name: bestSupplier,
           qty_recebida: totalQty,
           valor_cobrado: bestPrice,
+          conferido: false,
         };
       });
       setItens(builtItens);
@@ -92,7 +93,7 @@ export default function ConferenciaPedido() {
   }
 
   function updateItem(idx, field, value) {
-    setItens((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item));
+    setItens((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value, conferido: true } : item));
   }
 
   function isDivergente(item) {
@@ -119,7 +120,12 @@ export default function ConferenciaPedido() {
         token,
         body: { image_base64: base64, image_type: file.type, itens },
       });
-      setItens(result.itens);
+      // Marca como conferido os itens que o AI preencheu
+      setItens((prev) => result.itens.map((item, i) => {
+        const original = prev[i];
+        const touched = item.qty_recebida !== original?.qty_recebida || item.valor_cobrado !== original?.valor_cobrado;
+        return { ...item, conferido: touched };
+      }));
       setExtractInfo({
         matched: result.matches?.length || 0,
         nao_identificados: result.nao_identificados || [],
@@ -151,7 +157,15 @@ export default function ConferenciaPedido() {
     }
   }
 
-  const divergentes = itens.filter(isDivergente);
+  const divergentes = itens.filter((i) => i.conferido && isDivergente(i));
+
+  // Agrupar por fornecedor, mantendo a ordem de aparição
+  const porFornecedor = itens.reduce((acc, item, idx) => {
+    const key = item.supplier_name || 'Sem fornecedor';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push({ ...item, _idx: idx });
+    return acc;
+  }, {});
 
   return (
     <div className="max-w-4xl mx-auto p-4">
@@ -227,76 +241,83 @@ export default function ConferenciaPedido() {
             </div>
           )}
 
-          <div className="space-y-3 mb-6">
-            {itens.map((item, idx) => {
-              const div = isDivergente(item);
-              return (
-                <div
-                  key={item.product_id}
-                  className={`bg-white rounded-lg shadow-sm border p-4 ${div ? 'border-red-300 bg-red-50/40' : 'border-gray-200'}`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <span className="font-semibold text-gray-800">{item.name}</span>
-                      {item.supplier_name && (
-                        <span className="ml-2 text-xs text-gray-500">Fornecedor: {item.supplier_name}</span>
-                      )}
-                    </div>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${div ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                      {div ? '🔴 Divergente' : '✅ OK'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600 mb-3">
-                    <span>Pedido: <strong>{item.qty_pedida} {item.purchase_unit}</strong></span>
-                    <span>Preço acordado: <strong>{fmt(item.preco_acordado)}</strong></span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-4 items-end">
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Qtd recebida ({item.purchase_unit})</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.qty_recebida}
-                        onChange={(e) => updateItem(idx, 'qty_recebida', e.target.value)}
-                        className={`border rounded px-3 py-1.5 text-sm w-28 text-center ${
-                          Number(item.qty_recebida) !== Number(item.qty_pedida)
-                            ? 'border-red-400 bg-red-50'
-                            : 'border-gray-300'
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">Valor cobrado (R$/un)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.valor_cobrado}
-                        onChange={(e) => updateItem(idx, 'valor_cobrado', e.target.value)}
-                        className={`border rounded px-3 py-1.5 text-sm w-28 text-center ${
-                          Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
-                            ? 'border-red-400 bg-red-50'
-                            : 'border-gray-300'
-                        }`}
-                      />
-                    </div>
-                    {div && (
-                      <div className="text-xs text-red-600">
-                        {Number(item.qty_recebida) !== Number(item.qty_pedida) && (
-                          <div>Qtd esperada: {item.qty_pedida}, recebida: {item.qty_recebida}</div>
-                        )}
-                        {Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001 && (
-                          <div>Preço acordado: {fmt(item.preco_acordado)}, cobrado: {fmt(item.valor_cobrado)}</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+          <div className="space-y-6 mb-6">
+            {Object.entries(porFornecedor).map(([fornecedor, items]) => (
+              <div key={fornecedor}>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">{fornecedor}</h3>
+                  <span className="text-xs text-gray-400">{items.length} produto{items.length !== 1 ? 's' : ''}</span>
                 </div>
-              );
-            })}
+                <div className="space-y-2">
+                  {items.map((item) => {
+                    const div = isDivergente(item);
+                    return (
+                      <div
+                        key={item.product_id}
+                        className={`bg-white rounded-lg shadow-sm border p-4 ${item.conferido && div ? 'border-red-300 bg-red-50/40' : 'border-gray-200'}`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="font-semibold text-gray-800">{item.name}</span>
+                          {item.conferido && (
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${div ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                              {div ? '🔴 Divergente' : '✅ OK'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600 mb-3">
+                          <span>Pedido: <strong>{item.qty_pedida} {item.purchase_unit}</strong></span>
+                          <span>Preço acordado: <strong>{fmt(item.preco_acordado)}</strong></span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-4 items-end">
+                          <div>
+                            <label className="text-xs text-gray-500 block mb-1">Qtd no pedido do vendedor ({item.purchase_unit})</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.qty_recebida}
+                              onChange={(e) => updateItem(item._idx, 'qty_recebida', e.target.value)}
+                              className={`border rounded px-3 py-1.5 text-sm w-32 text-center ${
+                                item.conferido && Number(item.qty_recebida) !== Number(item.qty_pedida)
+                                  ? 'border-red-400 bg-red-50'
+                                  : 'border-gray-300'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500 block mb-1">Valor cobrado (R$/un)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.valor_cobrado}
+                              onChange={(e) => updateItem(item._idx, 'valor_cobrado', e.target.value)}
+                              className={`border rounded px-3 py-1.5 text-sm w-28 text-center ${
+                                item.conferido && Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
+                                  ? 'border-red-400 bg-red-50'
+                                  : 'border-gray-300'
+                              }`}
+                            />
+                          </div>
+                          {item.conferido && div && (
+                            <div className="text-xs text-red-600">
+                              {Number(item.qty_recebida) !== Number(item.qty_pedida) && (
+                                <div>Pedimos {item.qty_pedida}, vendedor lançou {item.qty_recebida}</div>
+                              )}
+                              {Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001 && (
+                                <div>Acordado {fmt(item.preco_acordado)}, cobrado {fmt(item.valor_cobrado)}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           <button
