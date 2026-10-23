@@ -107,7 +107,7 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
       </div>
 
       {/* TEM field */}
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0" style={{ minWidth: 180 }}>
         <StepButton onClick={() => { adj('current_stock', -step); onSave({ ...item, current_stock: Math.max(0, Number(item.current_stock) - step) }); }} disabled={isReadOnly} label="−" />
         <input
           type="number"
@@ -120,13 +120,13 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
           className="w-14 border border-gray-300 rounded px-1 py-1 text-center text-sm disabled:bg-gray-100"
         />
         <StepButton onClick={() => { adj('current_stock', step); onSave({ ...item, current_stock: Number(item.current_stock) + step }); }} disabled={isReadOnly} label="+" />
-        {item.unit_measure && <span className="text-xs text-gray-400 w-10 truncate">{item.unit_measure}</span>}
+        {item.unit_measure && <span className="text-xs text-gray-400 whitespace-nowrap">{item.unit_measure}</span>}
       </div>
 
       <div className="w-px h-8 bg-gray-200 shrink-0" />
 
       {/* COMPRAR field */}
-      <div className="flex flex-col items-start shrink-0">
+      <div className="flex flex-col items-start shrink-0" style={{ minWidth: 200 }}>
         <div className="flex items-center gap-1">
           <StepButton onClick={() => { adj('qty_to_buy', -buyStep); onSave({ ...item, qty_to_buy: Math.max(0, Number(item.qty_to_buy) - buyStep) }); }} disabled={isReadOnly} label="−" />
           <input
@@ -140,7 +140,7 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
             className="w-14 border border-gray-300 rounded px-1 py-1 text-center text-sm disabled:bg-gray-100"
           />
           <StepButton onClick={() => { adj('qty_to_buy', buyStep); onSave({ ...item, qty_to_buy: Number(item.qty_to_buy) + buyStep }); }} disabled={isReadOnly} label="+" />
-          {buyUnit && <span className="text-xs text-gray-400 w-10 truncate">{buyUnit}</span>}
+          {buyUnit && <span className="text-xs text-gray-400 whitespace-nowrap">{buyUnit}</span>}
         </div>
         {sugg && sugg.n_counts > 0 && (
           <p className="text-xs text-gray-400 mt-0.5 pl-1">
@@ -359,12 +359,12 @@ export default function Counting() {
                 <span className="w-5 shrink-0" />
                 <span className="w-5 shrink-0" />
                 <span className="flex-1">Produto</span>
-                <div className="flex flex-col items-center shrink-0" style={{ minWidth: 148 }}>
-                  <span>TEM</span>
+                <div className="flex flex-col items-center shrink-0" style={{ minWidth: 180 }}>
+                  <span>Quantidade · TEM</span>
                 </div>
                 <div className="w-px shrink-0" />
-                <div className="flex flex-col items-center shrink-0" style={{ minWidth: 148 }}>
-                  <span>COMPRAR</span>
+                <div className="flex flex-col items-center shrink-0" style={{ minWidth: 200 }}>
+                  <span>Quantidade · COMPRAR</span>
                 </div>
               </div>
               {filteredItems.length === 0 && (
