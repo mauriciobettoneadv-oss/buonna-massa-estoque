@@ -84,6 +84,7 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
   const step = isDecimalUnit(item.unit_measure) ? 0.1 : 1;
   const buyStep = isDecimalUnit(item.purchase_unit || item.unit_measure) ? 0.1 : 1;
   const sugg = suggestions[item.product_id];
+  const buyUnit = item.purchase_unit || item.unit_measure;
 
   function adj(field, delta) {
     const current = Number(item[field]) || 0;
@@ -92,44 +93,40 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 rounded-lg mb-1 shadow-sm">
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2 px-2 py-2 rounded-lg mb-1 shadow-sm">
       {/* Drag handle */}
       <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-300 text-lg px-1 select-none shrink-0">⠿</span>
 
       {statusIconEl(item)}
 
+      {/* Product name */}
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-sm text-gray-800 leading-tight">
           <HighlightText text={item.name} search={search} />
         </p>
-        <p className="text-xs text-gray-400">{item.unit_measure}</p>
       </div>
 
       {/* TEM field */}
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-xs text-gray-500 font-medium">TEM</span>
-        <div className="flex items-center gap-1">
-          <StepButton onClick={() => { adj('current_stock', -step); onSave({ ...item, current_stock: Math.max(0, Number(item.current_stock) - step) }); }} disabled={isReadOnly} label="−" />
-          <input
-            type="number"
-            step={step}
-            min="0"
-            value={item.current_stock}
-            disabled={isReadOnly}
-            onChange={(e) => onUpdate(item.product_id, 'current_stock', e.target.value)}
-            onBlur={() => onSave(item)}
-            className="w-16 border border-gray-300 rounded px-1 py-1 text-center text-sm disabled:bg-gray-100"
-          />
-          <StepButton onClick={() => { adj('current_stock', step); onSave({ ...item, current_stock: Number(item.current_stock) + step }); }} disabled={isReadOnly} label="+" />
-        </div>
-        {item.unit_measure && <span className="text-xs text-gray-400">{item.unit_measure}</span>}
+      <div className="flex items-center gap-1 shrink-0">
+        <StepButton onClick={() => { adj('current_stock', -step); onSave({ ...item, current_stock: Math.max(0, Number(item.current_stock) - step) }); }} disabled={isReadOnly} label="−" />
+        <input
+          type="number"
+          step={step}
+          min="0"
+          value={item.current_stock}
+          disabled={isReadOnly}
+          onChange={(e) => onUpdate(item.product_id, 'current_stock', e.target.value)}
+          onBlur={() => onSave(item)}
+          className="w-14 border border-gray-300 rounded px-1 py-1 text-center text-sm disabled:bg-gray-100"
+        />
+        <StepButton onClick={() => { adj('current_stock', step); onSave({ ...item, current_stock: Number(item.current_stock) + step }); }} disabled={isReadOnly} label="+" />
+        {item.unit_measure && <span className="text-xs text-gray-400 w-10 truncate">{item.unit_measure}</span>}
       </div>
 
-      <div className="w-px h-10 bg-gray-200 shrink-0" />
+      <div className="w-px h-8 bg-gray-200 shrink-0" />
 
       {/* COMPRAR field */}
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-xs text-gray-500 font-medium">COMPRAR</span>
+      <div className="flex flex-col items-start shrink-0">
         <div className="flex items-center gap-1">
           <StepButton onClick={() => { adj('qty_to_buy', -buyStep); onSave({ ...item, qty_to_buy: Math.max(0, Number(item.qty_to_buy) - buyStep) }); }} disabled={isReadOnly} label="−" />
           <input
@@ -140,14 +137,14 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
             disabled={isReadOnly}
             onChange={(e) => onUpdate(item.product_id, 'qty_to_buy', e.target.value)}
             onBlur={() => onSave(item)}
-            className="w-16 border border-gray-300 rounded px-1 py-1 text-center text-sm disabled:bg-gray-100"
+            className="w-14 border border-gray-300 rounded px-1 py-1 text-center text-sm disabled:bg-gray-100"
           />
           <StepButton onClick={() => { adj('qty_to_buy', buyStep); onSave({ ...item, qty_to_buy: Number(item.qty_to_buy) + buyStep }); }} disabled={isReadOnly} label="+" />
+          {buyUnit && <span className="text-xs text-gray-400 w-10 truncate">{buyUnit}</span>}
         </div>
-        {(item.purchase_unit || item.unit_measure) && <span className="text-xs text-gray-400">{item.purchase_unit || item.unit_measure}</span>}
         {sugg && sugg.n_counts > 0 && (
-          <p className="text-xs text-gray-400">
-            Média {sugg.n_counts >= 4 ? '4' : sugg.n_counts} sem.: {sugg.avg_qty} {item.purchase_unit || item.unit_measure}
+          <p className="text-xs text-gray-400 mt-0.5 pl-1">
+            Média {sugg.n_counts >= 4 ? '4' : sugg.n_counts} sem.: {sugg.avg_qty} {buyUnit}
           </p>
         )}
       </div>
@@ -357,6 +354,19 @@ export default function Counting() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={filteredItems.map((i) => i.product_id)} strategy={verticalListSortingStrategy}>
             <div className="mb-4">
+              {/* Table header */}
+              <div className="flex items-center gap-2 px-2 pb-2 mb-1 border-b border-gray-200 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                <span className="w-5 shrink-0" />
+                <span className="w-5 shrink-0" />
+                <span className="flex-1">Produto</span>
+                <div className="flex flex-col items-center shrink-0" style={{ minWidth: 148 }}>
+                  <span>TEM</span>
+                </div>
+                <div className="w-px shrink-0" />
+                <div className="flex flex-col items-center shrink-0" style={{ minWidth: 148 }}>
+                  <span>COMPRAR</span>
+                </div>
+              </div>
               {filteredItems.length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-4">Nenhum produto encontrado.</p>
               )}
