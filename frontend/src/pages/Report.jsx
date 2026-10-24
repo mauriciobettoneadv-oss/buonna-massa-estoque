@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import request from '../api/client';
 
 export default function Report() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const countId = searchParams.get('countId');
   const [items, setItems] = useState([]);
@@ -25,6 +25,7 @@ export default function Report() {
   const [historyTab, setHistoryTab] = useState('contagens'); // 'contagens' | 'compras'
   const [quotations, setQuotations] = useState([]);
   const [quotationsLoading, setQuotationsLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     if (!countId) {
@@ -117,6 +118,29 @@ export default function Report() {
     }
   }
 
+  async function exportBackup() {
+    setExporting(true);
+    try {
+      const API = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${API}/api/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Erro ao exportar dados');
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `buonna-massa-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function copyToClipboard() {
     await navigator.clipboard.writeText(reportText);
     setCopied(true);
@@ -132,7 +156,18 @@ export default function Report() {
     const finalized = history.filter(h => h.status === 'finalizada');
     return (
       <div className="max-w-3xl mx-auto p-4">
-        <h1 className="text-xl font-bold text-brand-red mb-4">Relatório de Compras</h1>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h1 className="text-xl font-bold text-brand-red">Relatório de Compras</h1>
+          {['dono', 'proprietario'].includes(user?.role) && (
+            <button
+              onClick={exportBackup}
+              disabled={exporting}
+              className="bg-gray-800 text-white text-sm px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+            >
+              {exporting ? 'Exportando...' : '⬇ Backup dos Dados'}
+            </button>
+          )}
+        </div>
         {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
         {/* Tabs */}

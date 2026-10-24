@@ -12,6 +12,9 @@ const supplierRoutes = require('./routes/suppliers');
 const notificationRoutes = require('./routes/notifications');
 const conferenciaPedidoRoutes = require('./routes/conferenciaPedido');
 const conferenciaEntregaRoutes = require('./routes/conferenciaEntrega');
+const { exportData } = require('./controllers/exportController');
+const { authenticate, requireRole } = require('./middleware/auth');
+const asyncHandler = require('./middleware/asyncHandler');
 
 const { startCronJobs, runHealthCheck } = require('./services/cronService');
 const { getQuotationByToken, saveQuotationByToken } = require('./controllers/supplierTokenController');
@@ -62,6 +65,7 @@ app.use('/api/suppliers', supplierRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/conferencia-pedido', conferenciaPedidoRoutes);
 app.use('/api/conferencia-entrega', conferenciaEntregaRoutes);
+app.get('/api/export', authenticate, requireRole('dono'), asyncHandler(exportData));
 
 app.use((err, req, res, next) => {
   console.error(err);
