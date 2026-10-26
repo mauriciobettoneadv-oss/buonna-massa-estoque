@@ -144,42 +144,62 @@ function ExtractResultModal({ result, onClose }) {
 // ─── Orders View ──────────────────────────────────────────────────────────────
 
 function OrdersView({ quotationId, token, onBack }) {
-  const [orders, setOrders] = useState(null);
+  const [data, setData] = useState(null);
   const [copied, setCopied] = useState({});
   const [qtyOverrides, setQtyOverrides] = useState({});
+  const [supplierOverrides, setSupplierOverrides] = useState({});
+  const [openPicker, setOpenPicker] = useState(null);
 
   useEffect(() => {
-    request(`/quotations/${quotationId}/orders`, { token }).then((d) => setOrders(d.orders));
+    request(`/quotations/${quotationId}/orders`, { token }).then(setData);
   }, [quotationId, token]);
 
-  if (!orders) return <p className="text-gray-500 p-4">Carregando pedidos...</p>;
+  if (!data) return <p className="text-gray-500 p-4">Carregando pedidos...</p>;
+
+  const { orders, supplier_options: supplierOptions = {} } = data;
 
   const unitIdByName = {};
   for (const o of orders) unitIdByName[o.unit_name] = o.unit_id;
 
+  function ovrKey(unitName, productId) {
+    return `${unitIdByName[unitName]}_${productId}`;
+  }
+
   function effQty(unitName, item) {
-    const key = `${unitIdByName[unitName]}_${item.product_id}`;
-    return qtyOverrides[key] !== undefined ? Number(qtyOverrides[key]) : item.qty_to_buy;
+    const k = ovrKey(unitName, item.product_id);
+    return qtyOverrides[k] !== undefined ? Number(qtyOverrides[k]) : item.qty_to_buy;
+  }
+
+  function effUnitPrice(unitName, item) {
+    const k = ovrKey(unitName, item.product_id);
+    return supplierOverrides[k] !== undefined ? supplierOverrides[k].unit_price : (item.unit_price || 0);
+  }
+
+  function effSupplierName(unitName, item) {
+    const k = ovrKey(unitName, item.product_id);
+    return supplierOverrides[k] ? supplierOverrides[k].supplier_name : (item.supplier_name || '—');
   }
 
   function effTotal(unitName, item) {
-    return effQty(unitName, item) * (item.unit_price || 0) * (item.multiplier || 1);
+    return effQty(unitName, item) * effUnitPrice(unitName, item) * (item.multiplier || 1);
   }
 
   function setQtyOverride(unitName, productId, val) {
-    const key = `${unitIdByName[unitName]}_${productId}`;
+    const k = ovrKey(unitName, productId);
     setQtyOverrides((prev) => {
-      if (val === '' || val === undefined) { const n = { ...prev }; delete n[key]; return n; }
-      return { ...prev, [key]: Number(val) };
+      if (val === '' || val === undefined) { const n = { ...prev }; delete n[k]; return n; }
+      return { ...prev, [k]: Number(val) };
     });
   }
 
   function buildSupplierMap() {
     const map = {};
     for (const order of orders) {
-      for (const [supplier, items] of Object.entries(order.by_supplier)) {
+      for (const item of order.items) {
+        const supplier = effSupplierName(order.unit_name, item);
         if (!map[supplier]) map[supplier] = {};
-        map[supplier][order.unit_name] = items;
+        if (!map[supplier][order.unit_name]) map[supplier][order.unit_name] = [];
+        map[supplier][order.unit_name].push(item);
       }
     }
     return map;
@@ -194,14 +214,15 @@ function OrdersView({ quotationId, token, onBack }) {
       if (orders.length > 1) text += `\n📍 ${unitName}\n`;
       for (const item of items) {
         const qty = effQty(unitName, item);
-        const total = effTotal(unitName, item);
+        const price = effUnitPrice(unitName, item);
+        const total = qty * price * (item.multiplier || 1);
         grandTotal += total;
         text += `• ${item.name}: ${qty} ${item.purchase_unit}`;
-        if (item.unit_price > 0) {
+        if (price > 0) {
           if (item.price_unit && item.price_unit.toLowerCase() !== (item.purchase_unit || '').toLowerCase()) {
-            text += ` × ${fmt(item.unit_price)}/${item.price_unit} = ${fmt(total)}`;
+            text += ` × ${fmt(price)}/${item.price_unit} = ${fmt(total)}`;
           } else {
-            text += ` × ${fmt(item.unit_price)} = ${fmt(total)}`;
+            text += ` × ${fmt(price)} = ${fmt(total)}`;
           }
         }
         text += '\n';
@@ -214,14 +235,71 @@ function OrdersView({ quotationId, token, onBack }) {
     return text;
   }
 
+  function renderSupplierPicker(unitName, item) {
+    const k = ovrKey(unitName, item.product_id);
+    const options = supplierOptions[item.product_id] || [];
+    if (options.length <= 1) return null;
+    const currentName = effSupplierName(unitName, item);
+    const isOverridden = !!supplierOverrides[k];
+    const isOpen = openPicker === k;
+    return (
+      <div className="mt-1">
+        <button
+          onClick={(e) => { e.stopPropagation(); setOpenPicker(isOpen ? null : k); }}
+          className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+            isOverridden
+              ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
+              : 'border-gray-200 text-gray-400 hover:border-gray-400 hover:text-gray-600'
+          }`}
+        >
+          {isOverridden ? '✏ ' : ''}{currentName} ▾
+        </button>
+        {isOpen && (
+          <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white z-10">
+            {options.map((opt) => {
+              const isDefault = !isOverridden && opt.supplier_name === item.supplier_name;
+              const isSelected = isOverridden
+                ? supplierOverrides[k]?.supplier_name === opt.supplier_name
+                : isDefault;
+              const restrictedForUnit = opt.is_restricted && !opt.delivery_cities.includes(unitName);
+              return (
+                <button
+                  key={opt.supplier_id}
+                  onClick={() => {
+                    setSupplierOverrides((prev) => {
+                      const isOriginal = opt.supplier_name === item.supplier_name && opt.unit_price === (item.unit_price || 0);
+                      if (isOriginal) { const n = { ...prev }; delete n[k]; return n; }
+                      return { ...prev, [k]: { supplier_name: opt.supplier_name, unit_price: opt.unit_price } };
+                    });
+                    setOpenPicker(null);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left border-b last:border-0 hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {isSelected && <span className="text-blue-600 font-bold">✓</span>}
+                    <span className={isSelected ? 'font-semibold text-blue-700' : 'text-gray-800'}>{opt.supplier_name}</span>
+                    {restrictedForUnit && (
+                      <span className="bg-orange-100 text-orange-700 px-1.5 rounded-full text-[10px] font-medium">retirada</span>
+                    )}
+                  </span>
+                  <span className="text-gray-700 font-medium ml-3">{fmt(opt.unit_price)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const supplierMap = buildSupplierMap();
   const unitNames = orders.map((o) => o.unit_name);
 
   return (
-    <div>
+    <div onClick={() => setOpenPicker(null)}>
       <button onClick={onBack} className="text-sm text-brand-red hover:underline mb-4">← Voltar à cotação</button>
       <h2 className="text-lg font-bold text-brand-red mb-1">Pedidos de Compra</h2>
-      <p className="text-xs text-gray-400 mb-5">Ajuste as quantidades se necessário e clique em "Copiar" para enviar ao fornecedor.</p>
+      <p className="text-xs text-gray-400 mb-5">Ajuste quantidades e fornecedores se necessário, depois clique em "Copiar" para enviar.</p>
 
       <div className="space-y-5">
         {Object.entries(supplierMap).map(([supplierName, unitMap]) => {
@@ -272,7 +350,7 @@ function OrdersView({ quotationId, token, onBack }) {
                         ) : (
                           <div className="divide-y">
                             {items.map((item) => (
-                              <div key={item.product_id} className="px-3 py-2">
+                              <div key={item.product_id} className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                                 <div className="text-sm text-gray-800">{item.name}</div>
                                 <div className="flex items-center justify-between mt-1 gap-2">
                                   <div className="flex items-center gap-1">
@@ -285,10 +363,11 @@ function OrdersView({ quotationId, token, onBack }) {
                                     />
                                     <span className="text-xs text-gray-500">{item.purchase_unit}</span>
                                   </div>
-                                  {item.unit_price > 0 && (
+                                  {effUnitPrice(unitName, item) > 0 && (
                                     <span className="text-xs font-medium text-gray-700">{fmt(effTotal(unitName, item))}</span>
                                   )}
                                 </div>
+                                {renderSupplierPicker(unitName, item)}
                               </div>
                             ))}
                           </div>
@@ -306,24 +385,27 @@ function OrdersView({ quotationId, token, onBack }) {
                 <div className="divide-y">
                   {Object.entries(unitMap).flatMap(([unitName, items]) =>
                     items.map((item) => (
-                      <div key={item.product_id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                        <span className="flex-1 text-gray-800">{item.name}</span>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0"
-                            value={effQty(unitName, item)}
-                            onChange={(e) => setQtyOverride(unitName, item.product_id, e.target.value)}
-                            className="w-14 border border-gray-300 rounded px-1 py-0.5 text-center text-xs focus:outline-none focus:border-brand-red"
-                          />
-                          <span className="text-gray-500 text-xs">{item.purchase_unit}</span>
+                      <div key={item.product_id} className="px-4 py-2 text-sm" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3">
+                          <span className="flex-1 text-gray-800">{item.name}</span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              value={effQty(unitName, item)}
+                              onChange={(e) => setQtyOverride(unitName, item.product_id, e.target.value)}
+                              className="w-14 border border-gray-300 rounded px-1 py-0.5 text-center text-xs focus:outline-none focus:border-brand-red"
+                            />
+                            <span className="text-gray-500 text-xs">{item.purchase_unit}</span>
+                          </div>
+                          {effUnitPrice(unitName, item) > 0 && (
+                            <>
+                              <span className="text-gray-400 text-xs">× {fmt(effUnitPrice(unitName, item))}</span>
+                              <span className="font-medium w-20 text-right">{fmt(effTotal(unitName, item))}</span>
+                            </>
+                          )}
                         </div>
-                        {item.unit_price > 0 && (
-                          <>
-                            <span className="text-gray-400 text-xs">× {fmt(item.unit_price)}</span>
-                            <span className="font-medium w-20 text-right">{fmt(effTotal(unitName, item))}</span>
-                          </>
-                        )}
+                        {renderSupplierPicker(unitName, item)}
                       </div>
                     ))
                   )}

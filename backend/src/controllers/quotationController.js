@@ -291,7 +291,32 @@ async function getOrders(req, res) {
     });
   }
 
-  res.json({ quotation: quotation.rows[0], orders });
+  // All supplier options per product (for frontend override picker)
+  const allOptions = await pool.query(
+    `SELECT qp.product_id, qs.id AS supplier_id, qs.name AS supplier_name,
+            qp.unit_price, s.delivery_cities
+     FROM quotation_prices qp
+     JOIN quotation_suppliers qs ON qs.id = qp.supplier_id
+     LEFT JOIN suppliers s ON s.id = qs.supplier_id
+     WHERE qs.quotation_id = $1 AND qp.unit_price > 0
+     ORDER BY qp.unit_price ASC`,
+    [id]
+  );
+
+  const supplierOptions = {};
+  for (const row of allOptions.rows) {
+    if (!supplierOptions[row.product_id]) supplierOptions[row.product_id] = [];
+    const cities = Array.isArray(row.delivery_cities) ? row.delivery_cities : [];
+    supplierOptions[row.product_id].push({
+      supplier_id: row.supplier_id,
+      supplier_name: row.supplier_name,
+      unit_price: Number(row.unit_price),
+      is_restricted: cities.length > 0,
+      delivery_cities: cities,
+    });
+  }
+
+  res.json({ quotation: quotation.rows[0], orders, supplier_options: supplierOptions });
 }
 
 async function closeQuotation(req, res) {
