@@ -520,9 +520,11 @@ function priceMultiplier(p) {
   const pu = (p.price_unit || '').toLowerCase().trim();
   const buyUnit = (p.purchase_unit || '').toLowerCase().trim();
   if (!pu || pu === buyUnit) return 1;
-  const qty = Number(p.box_qty) || 1;
+  const BOX_UNITS = ['caixa', 'fardo'];
+  const isBoxPurchase = BOX_UNITS.includes(buyUnit);
+  const qty = isBoxPurchase ? (Number(p.box_qty) || 1) : 1;
   const weight = Number(p.box_unit_weight) || 1;
-  return pu === 'kilo' ? qty * weight : qty;
+  return pu === 'kilo' ? qty * weight : (isBoxPurchase ? qty : 1);
 }
 
 function BestPriceTab({ data }) {

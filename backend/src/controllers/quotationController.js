@@ -251,13 +251,16 @@ async function getOrders(req, res) {
       const qty = Number(item.qty_to_buy);
       const unit_price = best?.best_price || 0;
       // Multiplier: converts price_unit → price per purchase_unit
+      // box_qty only applies when purchase_unit is a container (caixa/fardo) that holds N individual items
       const pu = (item.price_unit || '').toLowerCase().trim();
       const buyUnit = (item.purchase_unit || '').toLowerCase().trim();
       let multiplier = 1;
       if (pu && pu !== buyUnit) {
-        const boxQty = Number(item.box_qty) || 1;
+        const BOX_UNITS = ['caixa', 'fardo'];
+        const isBoxPurchase = BOX_UNITS.includes(buyUnit);
+        const boxQty = isBoxPurchase ? (Number(item.box_qty) || 1) : 1;
         const boxWeight = Number(item.box_unit_weight) || 1;
-        multiplier = pu === 'kilo' ? boxQty * boxWeight : boxQty;
+        multiplier = pu === 'kilo' ? boxQty * boxWeight : (isBoxPurchase ? boxQty : 1);
       }
       return {
         ...item,
