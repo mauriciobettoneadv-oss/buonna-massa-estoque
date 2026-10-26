@@ -53,7 +53,8 @@ async function getQuotation(req, res) {
 
   // All products that need to be bought across all linked counts
   const products = await pool.query(
-    `SELECT p.id AS product_id, p.name, p.category, p.unit_measure, p.purchase_unit, p.min_stock
+    `SELECT p.id AS product_id, p.name, p.category, p.unit_measure, p.purchase_unit, p.min_stock,
+            p.box_qty, p.box_unit_weight, p.price_unit
      FROM products p
      WHERE p.id IN (
        SELECT DISTINCT sci.product_id
@@ -236,7 +237,8 @@ async function getOrders(req, res) {
     }
 
     const items = await pool.query(
-      `SELECT p.id AS product_id, p.name, p.category, p.purchase_unit, sci.qty_to_buy
+      `SELECT p.id AS product_id, p.name, p.category, p.purchase_unit,
+              p.box_qty, p.box_unit_weight, p.price_unit, sci.qty_to_buy
        FROM stock_count_items sci
        JOIN products p ON p.id = sci.product_id
        WHERE sci.stock_count_id = $1 AND sci.qty_to_buy > 0
@@ -248,11 +250,21 @@ async function getOrders(req, res) {
       const best = bestMap[item.product_id];
       const qty = Number(item.qty_to_buy);
       const unit_price = best?.best_price || 0;
+      // Multiplier: converts price_unit → price per purchase_unit
+      const pu = (item.price_unit || '').toLowerCase().trim();
+      const buyUnit = (item.purchase_unit || '').toLowerCase().trim();
+      let multiplier = 1;
+      if (pu && pu !== buyUnit) {
+        const boxQty = Number(item.box_qty) || 1;
+        const boxWeight = Number(item.box_unit_weight) || 1;
+        multiplier = pu === 'kilo' ? boxQty * boxWeight : boxQty;
+      }
       return {
         ...item,
         qty_to_buy: qty,
         unit_price,
-        total_price: qty * unit_price,
+        multiplier,
+        total_price: qty * unit_price * multiplier,
         supplier_name: best?.supplier_name || '—',
       };
     });

@@ -174,7 +174,13 @@ function OrdersView({ quotationId, token, onBack }) {
       for (const item of items) {
         grandTotal += item.total_price;
         text += `• ${item.name}: ${item.qty_to_buy} ${item.purchase_unit}`;
-        if (item.unit_price > 0) text += ` × ${fmt(item.unit_price)} = ${fmt(item.total_price)}`;
+        if (item.unit_price > 0) {
+          if (item.price_unit && item.price_unit.toLowerCase() !== (item.purchase_unit || '').toLowerCase()) {
+            text += ` × ${fmt(item.unit_price)}/${item.price_unit} = ${fmt(item.total_price)}`;
+          } else {
+            text += ` × ${fmt(item.unit_price)} = ${fmt(item.total_price)}`;
+          }
+        }
         text += '\n';
       }
       const sub = items.reduce((s, i) => s + i.total_price, 0);
@@ -500,7 +506,7 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
               disabled={readOnly}
               className={`w-24 border rounded px-2 py-1 text-center text-sm ${isWinner ? 'border-green-500 font-bold' : 'border-gray-300'} ${readOnly ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
             />
-            <span className="text-xs text-gray-400 w-10">R$/un</span>
+            <span className="text-xs text-gray-400 w-16">R$/{p.price_unit || 'un'}</span>
           </div>
         );
       })}
@@ -510,8 +516,17 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
 
 // ─── Best Price Tab ───────────────────────────────────────────────────────────
 
+function priceMultiplier(p) {
+  const pu = (p.price_unit || '').toLowerCase().trim();
+  const buyUnit = (p.purchase_unit || '').toLowerCase().trim();
+  if (!pu || pu === buyUnit) return 1;
+  const qty = Number(p.box_qty) || 1;
+  const weight = Number(p.box_unit_weight) || 1;
+  return pu === 'kilo' ? qty * weight : qty;
+}
+
 function BestPriceTab({ data }) {
-  // Compute supplier totals (sum of qty*best_price for each product where supplier is cheapest)
+  // Compute supplier totals (sum of qty*best_price*multiplier for each product where supplier is cheapest)
   const supplierTotals = {};
   const supplierHasPrice = {};
 
@@ -526,7 +541,8 @@ function BestPriceTab({ data }) {
     const best = bestForProduct(data.prices, data.suppliers, p.product_id);
     if (best) {
       const totalQty = Object.values(p.qtys).reduce((s, q) => s + q, 0);
-      supplierTotals[best.supplierId].total += totalQty * best.price;
+      const mult = priceMultiplier(p);
+      supplierTotals[best.supplierId].total += totalQty * best.price * mult;
     }
   }
 
@@ -566,7 +582,13 @@ function BestPriceTab({ data }) {
               }).join(' | ')} {p.purchase_unit}
             </span>
             {best
-              ? <span className="bg-green-100 text-green-800 font-semibold text-sm px-2 py-0.5 rounded">{fmt(best.price)} <span className="text-xs font-normal text-green-600">({best.supplier})</span></span>
+              ? <span className="bg-green-100 text-green-800 font-semibold text-sm px-2 py-0.5 rounded">
+                  {fmt(best.price * priceMultiplier(p))}<span className="text-xs font-normal text-green-600">/{p.purchase_unit || 'un'}</span>
+                  {' '}<span className="text-xs font-normal text-green-600">({best.supplier})</span>
+                  {p.price_unit && p.price_unit.toLowerCase() !== (p.purchase_unit || '').toLowerCase() && (
+                    <span className="text-xs font-normal text-gray-400 ml-1">{fmt(best.price)}/{ p.price_unit}</span>
+                  )}
+                </span>
               : <span className="text-gray-400 text-sm">—</span>}
           </div>
         );
