@@ -146,12 +146,33 @@ function ExtractResultModal({ result, onClose }) {
 function OrdersView({ quotationId, token, onBack }) {
   const [orders, setOrders] = useState(null);
   const [copied, setCopied] = useState({});
+  const [qtyOverrides, setQtyOverrides] = useState({});
 
   useEffect(() => {
     request(`/quotations/${quotationId}/orders`, { token }).then((d) => setOrders(d.orders));
   }, [quotationId, token]);
 
   if (!orders) return <p className="text-gray-500 p-4">Carregando pedidos...</p>;
+
+  const unitIdByName = {};
+  for (const o of orders) unitIdByName[o.unit_name] = o.unit_id;
+
+  function effQty(unitName, item) {
+    const key = `${unitIdByName[unitName]}_${item.product_id}`;
+    return qtyOverrides[key] !== undefined ? Number(qtyOverrides[key]) : item.qty_to_buy;
+  }
+
+  function effTotal(unitName, item) {
+    return effQty(unitName, item) * (item.unit_price || 0) * (item.multiplier || 1);
+  }
+
+  function setQtyOverride(unitName, productId, val) {
+    const key = `${unitIdByName[unitName]}_${productId}`;
+    setQtyOverrides((prev) => {
+      if (val === '' || val === undefined) { const n = { ...prev }; delete n[key]; return n; }
+      return { ...prev, [key]: Number(val) };
+    });
+  }
 
   function buildSupplierMap() {
     const map = {};
@@ -172,18 +193,20 @@ function OrdersView({ quotationId, token, onBack }) {
     for (const [unitName, items] of Object.entries(unitMap)) {
       if (orders.length > 1) text += `\n📍 ${unitName}\n`;
       for (const item of items) {
-        grandTotal += item.total_price;
-        text += `• ${item.name}: ${item.qty_to_buy} ${item.purchase_unit}`;
+        const qty = effQty(unitName, item);
+        const total = effTotal(unitName, item);
+        grandTotal += total;
+        text += `• ${item.name}: ${qty} ${item.purchase_unit}`;
         if (item.unit_price > 0) {
           if (item.price_unit && item.price_unit.toLowerCase() !== (item.purchase_unit || '').toLowerCase()) {
-            text += ` × ${fmt(item.unit_price)}/${item.price_unit} = ${fmt(item.total_price)}`;
+            text += ` × ${fmt(item.unit_price)}/${item.price_unit} = ${fmt(total)}`;
           } else {
-            text += ` × ${fmt(item.unit_price)} = ${fmt(item.total_price)}`;
+            text += ` × ${fmt(item.unit_price)} = ${fmt(total)}`;
           }
         }
         text += '\n';
       }
-      const sub = items.reduce((s, i) => s + i.total_price, 0);
+      const sub = items.reduce((s, i) => s + effTotal(unitName, i), 0);
       if (sub > 0 && orders.length > 1) text += `  Subtotal ${unitName}: ${fmt(sub)}\n`;
     }
     text += '─────────────────────────────────\n';
@@ -198,11 +221,13 @@ function OrdersView({ quotationId, token, onBack }) {
     <div>
       <button onClick={onBack} className="text-sm text-brand-red hover:underline mb-4">← Voltar à cotação</button>
       <h2 className="text-lg font-bold text-brand-red mb-1">Pedidos de Compra</h2>
-      <p className="text-xs text-gray-400 mb-5">Clique em "Copiar" para enviar ao fornecedor via WhatsApp.</p>
+      <p className="text-xs text-gray-400 mb-5">Ajuste as quantidades se necessário e clique em "Copiar" para enviar ao fornecedor.</p>
 
       <div className="space-y-5">
         {Object.entries(supplierMap).map(([supplierName, unitMap]) => {
-          const grandTotal = Object.values(unitMap).flat().reduce((s, i) => s + i.total_price, 0);
+          const grandTotal = Object.entries(unitMap).reduce(
+            (s, [uName, items]) => s + items.reduce((ss, i) => ss + effTotal(uName, i), 0), 0
+          );
           const key = supplierName;
           return (
             <div key={key} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -236,7 +261,7 @@ function OrdersView({ quotationId, token, onBack }) {
                 <div style={{ gridTemplateColumns: `repeat(${unitNames.length}, 1fr)` }} className="grid divide-x">
                   {unitNames.map((unitName) => {
                     const items = unitMap[unitName] || [];
-                    const sub = items.reduce((s, i) => s + i.total_price, 0);
+                    const sub = items.reduce((s, i) => s + effTotal(unitName, i), 0);
                     return (
                       <div key={unitName}>
                         <div className="px-3 py-2 bg-brand-red/5 border-b text-xs font-semibold text-brand-red text-center">
@@ -249,10 +274,19 @@ function OrdersView({ quotationId, token, onBack }) {
                             {items.map((item) => (
                               <div key={item.product_id} className="px-3 py-2">
                                 <div className="text-sm text-gray-800">{item.name}</div>
-                                <div className="flex items-center justify-between mt-0.5">
-                                  <span className="text-xs text-gray-500">{item.qty_to_buy} {item.purchase_unit}</span>
+                                <div className="flex items-center justify-between mt-1 gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={effQty(unitName, item)}
+                                      onChange={(e) => setQtyOverride(unitName, item.product_id, e.target.value)}
+                                      className="w-14 border border-gray-300 rounded px-1 py-0.5 text-center text-xs focus:outline-none focus:border-brand-red"
+                                    />
+                                    <span className="text-xs text-gray-500">{item.purchase_unit}</span>
+                                  </div>
                                   {item.unit_price > 0 && (
-                                    <span className="text-xs font-medium text-gray-700">{fmt(item.total_price)}</span>
+                                    <span className="text-xs font-medium text-gray-700">{fmt(effTotal(unitName, item))}</span>
                                   )}
                                 </div>
                               </div>
@@ -270,18 +304,29 @@ function OrdersView({ quotationId, token, onBack }) {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {Object.values(unitMap).flat().map((item) => (
-                    <div key={item.product_id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                      <span className="flex-1 text-gray-800">{item.name}</span>
-                      <span className="text-gray-500 text-xs">{item.qty_to_buy} {item.purchase_unit}</span>
-                      {item.unit_price > 0 && (
-                        <>
-                          <span className="text-gray-400 text-xs">× {fmt(item.unit_price)}</span>
-                          <span className="font-medium w-20 text-right">{fmt(item.total_price)}</span>
-                        </>
-                      )}
-                    </div>
-                  ))}
+                  {Object.entries(unitMap).flatMap(([unitName, items]) =>
+                    items.map((item) => (
+                      <div key={item.product_id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                        <span className="flex-1 text-gray-800">{item.name}</span>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={effQty(unitName, item)}
+                            onChange={(e) => setQtyOverride(unitName, item.product_id, e.target.value)}
+                            className="w-14 border border-gray-300 rounded px-1 py-0.5 text-center text-xs focus:outline-none focus:border-brand-red"
+                          />
+                          <span className="text-gray-500 text-xs">{item.purchase_unit}</span>
+                        </div>
+                        {item.unit_price > 0 && (
+                          <>
+                            <span className="text-gray-400 text-xs">× {fmt(item.unit_price)}</span>
+                            <span className="font-medium w-20 text-right">{fmt(effTotal(unitName, item))}</span>
+                          </>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
 
@@ -491,22 +536,33 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
         const best = bestForProduct(data.prices, data.suppliers, p.product_id);
         const isWinner = best?.supplierId === supplier.id && Number(sp[p.product_id] || 0) > 0;
         const totalQty = Object.values(p.qtys).reduce((s, q) => s + q, 0);
+        const priceEntry = data.prices.find((px) => px.supplier_id === supplier.id && px.product_id === p.product_id);
+        const altBrand = priceEntry?.alt_brand;
         return (
-          <div key={p.product_id} className={`flex items-center gap-3 px-4 py-2.5 border-b last:border-0 ${isWinner ? 'bg-green-50' : ''}`}>
-            <span className="flex-1 text-sm font-medium">{p.name}</span>
-            <span className="text-xs text-gray-400">{totalQty} {p.purchase_unit}</span>
-            {isWinner && <span className="text-xs text-green-600 font-medium">✓ menor preço</span>}
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={sp[p.product_id] ?? ''}
-              onChange={(e) => !readOnly && onPriceChange(supplier.id, p.product_id, e.target.value)}
-              onBlur={() => !readOnly && onSave(supplier.id)}
-              disabled={readOnly}
-              className={`w-24 border rounded px-2 py-1 text-center text-sm ${isWinner ? 'border-green-500 font-bold' : 'border-gray-300'} ${readOnly ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
-            />
-            <span className="text-xs text-gray-400 w-16">R$/{p.price_unit || 'un'}</span>
+          <div key={p.product_id} className={`px-4 py-2.5 border-b last:border-0 ${isWinner ? 'bg-green-50' : ''}`}>
+            <div className="flex items-center gap-3">
+              <span className="flex-1 text-sm font-medium">{p.name}</span>
+              <span className="text-xs text-gray-400">{totalQty} {p.purchase_unit}</span>
+              {isWinner && <span className="text-xs text-green-600 font-medium">✓ menor preço</span>}
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={sp[p.product_id] ?? ''}
+                onChange={(e) => !readOnly && onPriceChange(supplier.id, p.product_id, e.target.value)}
+                onBlur={() => !readOnly && onSave(supplier.id)}
+                disabled={readOnly}
+                className={`w-24 border rounded px-2 py-1 text-center text-sm ${isWinner ? 'border-green-500 font-bold' : 'border-gray-300'} ${readOnly ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''}`}
+              />
+              <span className="text-xs text-gray-400 w-16">R$/{p.price_unit || 'un'}</span>
+            </div>
+            {altBrand && (
+              <div className="mt-1">
+                <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">
+                  🏷 Outra marca: {altBrand}
+                </span>
+              </div>
+            )}
           </div>
         );
       })}
@@ -574,24 +630,60 @@ function BestPriceTab({ data }) {
       <div className="px-4 py-2 border-b text-sm text-gray-500">Menor preço por item entre todos os fornecedores.</div>
       {data.products.map((p) => {
         const best = bestForProduct(data.prices, data.suppliers, p.product_id);
+        const bestEntry = best ? data.prices.find((px) => px.supplier_id === best.supplierId && px.product_id === p.product_id) : null;
+        const altBrand = bestEntry?.alt_brand;
+
+        // Warning: restricted supplier ≥10% cheaper than unrestricted best
+        const unrestricted = data.suppliers.filter((s) => !Array.isArray(s.delivery_cities) || !s.delivery_cities.length);
+        const universalBest = bestForProduct(data.prices, unrestricted, p.product_id);
+        const restrictedWarning = (() => {
+          if (!universalBest) return null;
+          for (const s of data.suppliers) {
+            if (!Array.isArray(s.delivery_cities) || !s.delivery_cities.length) continue;
+            const px = data.prices.find((pp) => pp.supplier_id === s.id && pp.product_id === p.product_id);
+            const price = Number(px?.unit_price || 0);
+            if (!price) continue;
+            if (price < universalBest.price * 0.9) {
+              return { supplierName: s.name, cities: s.delivery_cities, pct: Math.round((1 - price / universalBest.price) * 100), price };
+            }
+          }
+          return null;
+        })();
+
         return (
-          <div key={p.product_id} className="flex items-center gap-3 px-4 py-2.5 border-b last:border-0">
-            <span className="flex-1 text-sm font-medium">{p.name}</span>
-            <span className="text-xs text-gray-400">
-              {Object.entries(p.qtys).map(([uid, qty]) => {
-                const unit = data.counts.find((c) => String(c.unit_id) === String(uid));
-                return `${unit?.unit_name || uid}: ${qty}`;
-              }).join(' | ')} {p.purchase_unit}
-            </span>
-            {best
-              ? <span className="bg-green-100 text-green-800 font-semibold text-sm px-2 py-0.5 rounded">
-                  {fmt(best.price * priceMultiplier(p))}<span className="text-xs font-normal text-green-600">/{p.purchase_unit || 'un'}</span>
-                  {' '}<span className="text-xs font-normal text-green-600">({best.supplier})</span>
-                  {p.price_unit && p.price_unit.toLowerCase() !== (p.purchase_unit || '').toLowerCase() && (
-                    <span className="text-xs font-normal text-gray-400 ml-1">{fmt(best.price)}/{ p.price_unit}</span>
-                  )}
+          <div key={p.product_id} className="px-4 py-2.5 border-b last:border-0">
+            <div className="flex items-center gap-3">
+              <span className="flex-1 text-sm font-medium">{p.name}</span>
+              <span className="text-xs text-gray-400">
+                {Object.entries(p.qtys).map(([uid, qty]) => {
+                  const unit = data.counts.find((c) => String(c.unit_id) === String(uid));
+                  return `${unit?.unit_name || uid}: ${qty}`;
+                }).join(' | ')} {p.purchase_unit}
+              </span>
+              {best
+                ? <span className="bg-green-100 text-green-800 font-semibold text-sm px-2 py-0.5 rounded">
+                    {fmt(best.price * priceMultiplier(p))}<span className="text-xs font-normal text-green-600">/{p.purchase_unit || 'un'}</span>
+                    {' '}<span className="text-xs font-normal text-green-600">({best.supplier})</span>
+                    {p.price_unit && p.price_unit.toLowerCase() !== (p.purchase_unit || '').toLowerCase() && (
+                      <span className="text-xs font-normal text-gray-400 ml-1">{fmt(best.price)}/{p.price_unit}</span>
+                    )}
+                  </span>
+                : <span className="text-gray-400 text-sm">—</span>}
+            </div>
+            {altBrand && (
+              <div className="mt-1">
+                <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">
+                  🏷 Outra marca: {altBrand} <span className="font-normal text-amber-600">({best?.supplier})</span>
                 </span>
-              : <span className="text-gray-400 text-sm">—</span>}
+              </div>
+            )}
+            {restrictedWarning && (
+              <div className="mt-1">
+                <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-medium">
+                  ⚡ {restrictedWarning.supplierName} entrega só em {restrictedWarning.cities.join(', ')} — {restrictedWarning.pct}% mais barato que o 2º melhor
+                </span>
+              </div>
+            )}
           </div>
         );
       })}
