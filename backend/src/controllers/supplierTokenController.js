@@ -49,14 +49,17 @@ async function getQuotationByToken(req, res) {
 
   // Produtos que precisam ser cotados
   const products = await pool.query(
-    `SELECT DISTINCT ON (p.id)
-            p.id AS product_id, p.name, p.purchase_unit,
-            SUM(sci.qty_to_buy) OVER (PARTITION BY p.id) AS total_qty
-     FROM quotation_counts qc
-     JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
-     JOIN products p ON p.id = sci.product_id
-     WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0
-     ORDER BY p.id, p.ordem ASC NULLS LAST`,
+    `SELECT p.id AS product_id, p.name, p.purchase_unit,
+            agg.total_qty
+     FROM products p
+     JOIN (
+       SELECT sci.product_id, SUM(sci.qty_to_buy) AS total_qty
+       FROM quotation_counts qc
+       JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
+       WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0
+       GROUP BY sci.product_id
+     ) agg ON agg.product_id = p.id
+     ORDER BY p.ordem ASC NULLS LAST, p.name ASC`,
     [quotationId]
   );
 

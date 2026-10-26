@@ -53,13 +53,15 @@ async function getQuotation(req, res) {
 
   // All products that need to be bought across all linked counts
   const products = await pool.query(
-    `SELECT DISTINCT ON (p.id)
-            p.id AS product_id, p.name, p.category, p.unit_measure, p.purchase_unit, p.min_stock
-     FROM quotation_counts qc
-     JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
-     JOIN products p ON p.id = sci.product_id
-     WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0
-     ORDER BY p.id, p.ordem ASC NULLS LAST`,
+    `SELECT p.id AS product_id, p.name, p.category, p.unit_measure, p.purchase_unit, p.min_stock
+     FROM products p
+     WHERE p.id IN (
+       SELECT DISTINCT sci.product_id
+       FROM quotation_counts qc
+       JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
+       WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0
+     )
+     ORDER BY p.ordem ASC NULLS LAST, p.name ASC`,
     [id]
   );
 
