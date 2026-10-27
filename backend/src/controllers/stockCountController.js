@@ -6,6 +6,16 @@ function computeQtyToBuy(minStock, currentStock) {
   return diff > 0 ? diff : 0;
 }
 
+async function deleteCount(req, res) {
+  const { id } = req.params;
+  const count = await pool.query(`SELECT * FROM stock_counts WHERE id = $1`, [id]);
+  if (!count.rows.length) return res.status(404).json({ error: 'Contagem não encontrada.' });
+  if (count.rows[0].status === 'finalizada') return res.status(400).json({ error: 'Não é possível excluir uma contagem finalizada.' });
+  await pool.query(`DELETE FROM stock_count_items WHERE stock_count_id = $1`, [id]);
+  await pool.query(`DELETE FROM stock_counts WHERE id = $1`, [id]);
+  res.json({ ok: true });
+}
+
 async function startOrGetOpenCount(req, res) {
   const { unit_id } = req.body;
   if (!unit_id) return res.status(400).json({ error: 'unit_id é obrigatório.' });

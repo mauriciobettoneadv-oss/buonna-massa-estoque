@@ -28,6 +28,8 @@ export default function CountHistory() {
   const [selected, setSelected] = useState([]);
   const [compareModal, setCompareModal] = useState(false);
   const [compareData, setCompareData] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   useEffect(() => {
     request('/stock-counts/history', { token })
@@ -57,6 +59,19 @@ export default function CountHistory() {
       if (prev.length >= 2) return [prev[1], id];
       return [...prev, id];
     });
+  }
+
+  async function handleDelete(id) {
+    setDeletingId(id);
+    try {
+      await request(`/stock-counts/${id}`, { method: 'DELETE', token });
+      setCounts((prev) => prev.filter((c) => c.id !== id));
+      setConfirmDelete(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function openCompare() {
@@ -149,6 +164,15 @@ export default function CountHistory() {
                       Relatório →
                     </button>
                   )}
+                  {c.status !== 'finalizada' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(c.id); }}
+                      className="text-red-400 hover:text-red-600 shrink-0 p-1"
+                      title="Excluir contagem"
+                    >
+                      🗑
+                    </button>
+                  )}
                   <span className="text-gray-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
                 </div>
 
@@ -203,6 +227,30 @@ export default function CountHistory() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 flex flex-col gap-4">
+            <h2 className="font-bold text-gray-800">Excluir contagem?</h2>
+            <p className="text-sm text-gray-600">Esta ação não pode ser desfeita. A contagem será removida permanentemente.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:underline"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDelete)}
+                disabled={deletingId === confirmDelete}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded font-medium hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingId === confirmDelete ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
