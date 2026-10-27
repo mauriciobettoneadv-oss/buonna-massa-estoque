@@ -6,6 +6,11 @@ function fmt(n) {
   return Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function fmtDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export default function ConferenciaPedido() {
   const { token } = useAuth();
 
@@ -191,6 +196,7 @@ export default function ConferenciaPedido() {
               >
                 Cotação #{q.id}
                 {q.units?.length > 0 && <span className="ml-1 text-xs opacity-75">({q.units.join(' + ')})</span>}
+                {q.created_at && <span className="ml-1 text-xs opacity-60">· {fmtDate(q.created_at)}</span>}
               </button>
             ))}
           </div>
@@ -205,6 +211,7 @@ export default function ConferenciaPedido() {
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="font-semibold text-gray-800">
               Cotação #{selectedQuotation.id} — {itens.length} produtos
+              {selectedQuotation.created_at && <span className="ml-2 text-sm font-normal text-gray-400">{fmtDate(selectedQuotation.created_at)}</span>}
             </h2>
             <div className="flex items-center gap-2 flex-wrap">
               {divergentes.length > 0 && (
