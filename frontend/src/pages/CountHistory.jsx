@@ -204,7 +204,9 @@ export default function CountHistory() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>{badge.label}</span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {fmtDate(c.created_at)}
+                      {c.status === 'finalizada' && c.finalized_at
+                        ? <>Finalizada em {fmtDate(c.finalized_at)}</>
+                        : fmtDate(c.created_at)}
                       {c.created_by_name && <> · {c.created_by_name}</>}
                       {c.items_counted > 0 && <> · {c.items_counted} produtos contados</>}
                       {c.items_to_buy > 0 && <> · {c.items_to_buy} para comprar</>}

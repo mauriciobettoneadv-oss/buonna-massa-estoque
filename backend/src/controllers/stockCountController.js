@@ -316,7 +316,7 @@ async function getHistory(req, res) {
      LEFT JOIN users fb ON fb.id = sc.finalized_by
      LEFT JOIN stock_count_items sci ON sci.stock_count_id = sc.id
      GROUP BY sc.id, u.name, cb.name, sb.name, fb.name
-     ORDER BY sc.id DESC`
+     ORDER BY COALESCE(sc.finalized_at, sc.saved_at, sc.created_at) DESC`
   );
   res.json(result.rows);
 }
