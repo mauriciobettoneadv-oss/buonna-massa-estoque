@@ -146,6 +146,7 @@ async function startServer() {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock_piracicaba NUMERIC DEFAULT 0`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_per_package NUMERIC`);
     await pool.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS canal_preferencial TEXT`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_unit_id INTEGER REFERENCES units(id)`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS stock_count_edits (
         id SERIAL PRIMARY KEY,

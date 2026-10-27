@@ -4,15 +4,18 @@ const { OWNER_ROLES } = require('../middleware/auth');
 
 async function listUsers(req, res) {
   const result = await pool.query(
-    `SELECT u.id, u.name, u.email, u.role, u.active, u.unit_id, u.whatsapp, un.name AS unit_name
-     FROM users u LEFT JOIN units un ON un.id = u.unit_id
+    `SELECT u.id, u.name, u.email, u.role, u.active, u.unit_id, u.whatsapp, u.notify_unit_id,
+            un.name AS unit_name, nun.name AS notify_unit_name
+     FROM users u
+     LEFT JOIN units un ON un.id = u.unit_id
+     LEFT JOIN units nun ON nun.id = u.notify_unit_id
      ORDER BY u.id`
   );
   res.json(result.rows);
 }
 
 async function createUser(req, res) {
-  const { name, email, password, role, unit_id, whatsapp } = req.body;
+  const { name, email, password, role, unit_id, whatsapp, notify_unit_id } = req.body;
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: 'Nome, e-mail, senha e perfil são obrigatórios.' });
   }
@@ -21,16 +24,16 @@ async function createUser(req, res) {
   }
   const hash = await bcrypt.hash(password, 10);
   const result = await pool.query(
-    `INSERT INTO users (name, email, password_hash, role, unit_id, whatsapp)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, role, active, unit_id, whatsapp`,
-    [name, email, hash, role, unit_id || null, whatsapp || null]
+    `INSERT INTO users (name, email, password_hash, role, unit_id, whatsapp, notify_unit_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, email, role, active, unit_id, whatsapp, notify_unit_id`,
+    [name, email, hash, role, unit_id || null, whatsapp || null, notify_unit_id || null]
   );
   res.status(201).json(result.rows[0]);
 }
 
 async function updateUser(req, res) {
   const { id } = req.params;
-  const { name, email, password, role, unit_id, whatsapp } = req.body;
+  const { name, email, password, role, unit_id, whatsapp, notify_unit_id } = req.body;
   const actor = req.user;
 
   // Gerente cannot change roles
@@ -51,11 +54,12 @@ async function updateUser(req, res) {
   if (role) { fields.push(`role = $${idx++}`); values.push(role); }
   if (unit_id !== undefined) { fields.push(`unit_id = $${idx++}`); values.push(unit_id || null); }
   if (whatsapp !== undefined) { fields.push(`whatsapp = $${idx++}`); values.push(whatsapp || null); }
+  if (notify_unit_id !== undefined) { fields.push(`notify_unit_id = $${idx++}`); values.push(notify_unit_id || null); }
   if (!fields.length) return res.status(400).json({ error: 'Nenhum campo para atualizar.' });
 
   values.push(id);
   const result = await pool.query(
-    `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, active, unit_id, whatsapp`,
+    `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, name, email, role, active, unit_id, whatsapp, notify_unit_id`,
     values
   );
   if (!result.rows.length) return res.status(404).json({ error: 'Usuário não encontrado.' });

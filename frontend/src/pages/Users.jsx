@@ -16,7 +16,7 @@ const ROLE_BADGE = {
   contador: 'bg-blue-100 text-blue-700',
 };
 
-const EMPTY_FORM = { name: '', email: '', password: '', role: 'contador', unit_id: '', whatsapp: '' };
+const EMPTY_FORM = { name: '', email: '', password: '', role: 'contador', unit_id: '', whatsapp: '', notify_unit_id: '' };
 
 export default function Users() {
   const { token, user: currentUser } = useAuth();
@@ -55,7 +55,7 @@ export default function Users() {
 
   function openEdit(u) {
     setEditId(u.id);
-    setForm({ name: u.name, email: u.email, password: '', role: u.role, unit_id: u.unit_id ?? '', whatsapp: u.whatsapp ?? '' });
+    setForm({ name: u.name, email: u.email, password: '', role: u.role, unit_id: u.unit_id ?? '', whatsapp: u.whatsapp ?? '', notify_unit_id: u.notify_unit_id ?? '' });
     setError('');
     setShowForm(true);
   }
@@ -78,6 +78,7 @@ export default function Users() {
         role: form.role,
         unit_id: form.unit_id !== '' ? Number(form.unit_id) : null,
         whatsapp: form.whatsapp || null,
+        notify_unit_id: form.notify_unit_id !== '' ? Number(form.notify_unit_id) : null,
       };
       if (form.password) body.password = form.password;
 
@@ -196,6 +197,19 @@ export default function Users() {
                 onChange={e => setForm({ ...form, whatsapp: e.target.value.replace(/\D/g, '') })}
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notificações WhatsApp <span className="text-gray-400 font-normal">(receber aviso de contagem)</span>
+              </label>
+              <select
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                value={form.notify_unit_id}
+                onChange={e => setForm({ ...form, notify_unit_id: e.target.value })}
+              >
+                <option value="">Todas as unidades</option>
+                {units.map(u => <option key={u.id} value={u.id}>{u.name} apenas</option>)}
+              </select>
+            </div>
           </div>
           <div className="flex gap-3 mt-4">
             <button type="submit" disabled={saving}
@@ -228,7 +242,10 @@ export default function Users() {
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-800">{u.name}</td>
                 <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                <td className="px-4 py-3 text-gray-600 text-xs">{u.whatsapp || <span className="text-gray-300">—</span>}</td>
+                <td className="px-4 py-3 text-gray-600 text-xs">
+                  {u.whatsapp || <span className="text-gray-300">—</span>}
+                  {u.notify_unit_name && <span className="ml-1 text-gray-400">({u.notify_unit_name})</span>}
+                </td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_BADGE[u.role] || 'bg-gray-100 text-gray-600'}`}>
                     {ROLE_LABELS[u.role] || u.role}

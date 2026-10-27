@@ -147,7 +147,7 @@ async function notifyDonos(actor, count) {
     `SELECT name, whatsapp FROM users
      WHERE role IN ('dono', 'proprietario', 'gerente') AND active = TRUE
        AND whatsapp IS NOT NULL AND whatsapp <> ''
-       AND (unit_id IS NULL OR unit_id = $1)`,
+       AND (notify_unit_id IS NULL OR notify_unit_id = $1)`,
     [count.unit_id]
   );
   if (recipients.rows.length === 0) return;
