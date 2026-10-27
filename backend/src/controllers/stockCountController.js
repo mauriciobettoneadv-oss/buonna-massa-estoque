@@ -20,7 +20,7 @@ async function startOrGetOpenCount(req, res) {
   const { unit_id } = req.body;
   if (!unit_id) return res.status(400).json({ error: 'unit_id é obrigatório.' });
 
-  // Retorna qualquer contagem não finalizada do dia
+  // Retorna qualquer contagem não finalizada existente
   const existing = await pool.query(
     `SELECT * FROM stock_counts
      WHERE unit_id = $1 AND status IN ('aberta', 'salva')
@@ -28,6 +28,18 @@ async function startOrGetOpenCount(req, res) {
     [unit_id]
   );
   if (existing.rows.length > 0) return res.json(existing.rows[0]);
+
+  // Bloqueia se já existe contagem finalizada hoje para esta unidade
+  const finalizedToday = await pool.query(
+    `SELECT id FROM stock_counts
+     WHERE unit_id = $1 AND status = 'finalizada'
+       AND (created_at AT TIME ZONE 'America/Sao_Paulo')::date = (NOW() AT TIME ZONE 'America/Sao_Paulo')::date
+     LIMIT 1`,
+    [unit_id]
+  );
+  if (finalizedToday.rows.length > 0) {
+    return res.status(400).json({ error: 'Já existe uma contagem finalizada hoje para esta unidade.' });
+  }
 
   const result = await pool.query(
     `INSERT INTO stock_counts (unit_id, created_by) VALUES ($1, $2) RETURNING *`,
@@ -333,4 +345,68 @@ async function getSuggestions(req, res) {
   res.json(map);
 }
 
-module.exports = { startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport, getHistory, getSuggestions };
+async function editFinalizedItem(req, res) {
+  const { id } = req.params;
+  const { product_id, current_stock, qty_to_buy } = req.body;
+
+  if (product_id === undefined) return res.status(400).json({ error: 'product_id é obrigatório.' });
+
+  const countResult = await pool.query('SELECT * FROM stock_counts WHERE id = $1', [id]);
+  if (!countResult.rows.length) return res.status(404).json({ error: 'Contagem não encontrada.' });
+  if (countResult.rows[0].status !== 'finalizada') {
+    return res.status(400).json({ error: 'Esta contagem não está finalizada.' });
+  }
+
+  const itemResult = await pool.query(
+    'SELECT * FROM stock_count_items WHERE stock_count_id = $1 AND product_id = $2',
+    [id, product_id]
+  );
+  const old = itemResult.rows[0] || { current_stock: 0, qty_to_buy: 0 };
+
+  const newCurrentStock = current_stock !== undefined ? current_stock : old.current_stock;
+  const newQtyToBuy = qty_to_buy !== undefined ? qty_to_buy : old.qty_to_buy;
+
+  const updated = await pool.query(
+    `INSERT INTO stock_count_items (stock_count_id, product_id, current_stock, qty_to_buy)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (stock_count_id, product_id)
+     DO UPDATE SET current_stock = $3, qty_to_buy = $4
+     RETURNING *`,
+    [id, product_id, newCurrentStock, newQtyToBuy]
+  );
+
+  const edits = [];
+  if (current_stock !== undefined && Number(current_stock) !== Number(old.current_stock)) {
+    edits.push(['current_stock', old.current_stock, current_stock]);
+  }
+  if (qty_to_buy !== undefined && Number(qty_to_buy) !== Number(old.qty_to_buy)) {
+    edits.push(['qty_to_buy', old.qty_to_buy, qty_to_buy]);
+  }
+  for (const [field, oldVal, newVal] of edits) {
+    await pool.query(
+      `INSERT INTO stock_count_edits (stock_count_id, product_id, field, old_value, new_value, edited_by)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, product_id, field, oldVal, newVal, req.user.id]
+    );
+  }
+
+  res.json(updated.rows[0]);
+}
+
+async function getItemEdits(req, res) {
+  const { id } = req.params;
+  const result = await pool.query(
+    `SELECT sce.product_id, p.name AS product_name, sce.field,
+            sce.old_value, sce.new_value, sce.edited_at,
+            u.name AS edited_by_name
+     FROM stock_count_edits sce
+     JOIN products p ON p.id = sce.product_id
+     JOIN users u ON u.id = sce.edited_by
+     WHERE sce.stock_count_id = $1
+     ORDER BY sce.edited_at DESC`,
+    [id]
+  );
+  res.json(result.rows);
+}
+
+module.exports = { startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport, getHistory, getSuggestions, deleteCount, editFinalizedItem, getItemEdits };

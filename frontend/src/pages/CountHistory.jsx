@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import request from '../api/client';
+
+const OWNER_ROLES = ['dono', 'proprietario'];
 
 const STATUS_BADGE = {
   aberta: { label: 'Aberta', cls: 'bg-yellow-100 text-yellow-700' },
@@ -18,7 +20,8 @@ function fmtDate(d) {
 }
 
 export default function CountHistory() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const isOwner = OWNER_ROLES.includes(user?.role);
   const navigate = useNavigate();
   const [counts, setCounts] = useState(null);
   const [error, setError] = useState('');
@@ -30,6 +33,11 @@ export default function CountHistory() {
   const [compareData, setCompareData] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editingCell, setEditingCell] = useState(null); // { countId, productId, field }
+  const [editValue, setEditValue] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editsCache, setEditsCache] = useState({});
+  const editInputRef = useRef(null);
 
   useEffect(() => {
     request('/stock-counts/history', { token })
@@ -40,16 +48,20 @@ export default function CountHistory() {
   async function toggleExpand(id) {
     const isOpen = expanded[id];
     setExpanded((prev) => ({ ...prev, [id]: !isOpen }));
-    if (!isOpen && !itemsCache[id]) {
-      setLoadingItems((prev) => ({ ...prev, [id]: true }));
-      try {
-        const data = await request(`/stock-counts/${id}`, { token });
-        setItemsCache((prev) => ({ ...prev, [id]: data.items }));
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoadingItems((prev) => ({ ...prev, [id]: false }));
+    if (!isOpen) {
+      if (!itemsCache[id]) {
+        setLoadingItems((prev) => ({ ...prev, [id]: true }));
+        try {
+          const data = await request(`/stock-counts/${id}`, { token });
+          setItemsCache((prev) => ({ ...prev, [id]: data.items }));
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoadingItems((prev) => ({ ...prev, [id]: false }));
+        }
       }
+      const c = counts?.find((x) => x.id === id);
+      if (isOwner && c?.status === 'finalizada') loadEdits(id);
     }
   }
 
@@ -72,6 +84,48 @@ export default function CountHistory() {
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function startEdit(countId, productId, field, currentValue) {
+    setEditingCell({ countId, productId, field });
+    setEditValue(String(currentValue));
+    setTimeout(() => editInputRef.current?.select(), 0);
+  }
+
+  async function saveEdit() {
+    if (!editingCell) return;
+    const { countId, productId, field } = editingCell;
+    const val = Number(editValue);
+    if (isNaN(val) || val < 0) { setEditingCell(null); return; }
+    setEditSaving(true);
+    try {
+      const updated = await request(`/stock-counts/${countId}/items/edit`, {
+        method: 'PUT', token,
+        body: { product_id: productId, [field]: val },
+      });
+      setItemsCache((prev) => ({
+        ...prev,
+        [countId]: prev[countId].map((i) =>
+          i.product_id === productId ? { ...i, [field]: updated[field] } : i
+        ),
+      }));
+      // Refresh edits log
+      const edits = await request(`/stock-counts/${countId}/item-edits`, { token });
+      setEditsCache((prev) => ({ ...prev, [countId]: edits }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEditSaving(false);
+      setEditingCell(null);
+    }
+  }
+
+  async function loadEdits(countId) {
+    if (editsCache[countId]) return;
+    try {
+      const edits = await request(`/stock-counts/${countId}/item-edits`, { token });
+      setEditsCache((prev) => ({ ...prev, [countId]: edits }));
+    } catch { /* silent */ }
   }
 
   async function openCompare() {
@@ -180,48 +234,103 @@ export default function CountHistory() {
                   <div className="px-4 pb-3 border-t bg-gray-50">
                     {loadingItems[c.id] ? (
                       <p className="text-xs text-gray-400 py-2">Carregando itens...</p>
-                    ) : itemsCache[c.id] ? (
-                      <table className="w-full text-xs mt-2">
-                        <thead>
-                          <tr className="text-gray-500 border-b">
-                            <th className="text-left pb-1">Produto</th>
-                            <th className="text-right pb-1">Qtd Tem</th>
-                            <th className="text-right pb-1">Un. Tem</th>
-                            <th className="text-right pb-1">Qtd Comprar</th>
-                            <th className="text-right pb-1">Un. Comprar</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {itemsCache[c.id].filter((i) => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).map((item, idx) => {
-                            const isZero = Number(item.current_stock) === 0;
-                            const hasToBuy = Number(item.qty_to_buy) > 0;
-                            const rowCls = [
-                              idx % 2 === 1 ? 'even:bg-gray-50' : '',
-                              isZero ? 'text-gray-300' : '',
-                              hasToBuy ? 'bg-yellow-50' : '',
-                            ].filter(Boolean).join(' ');
-                            return (
-                              <tr key={item.product_id} className={`border-b border-gray-100 ${rowCls}`}>
-                                <td className="py-1 text-gray-700">{item.name}</td>
-                                <td className="text-right font-mono">{item.current_stock}</td>
-                                <td className="text-right text-gray-400 text-xs">{item.unit_measure}</td>
-                                <td className="text-right font-mono">{item.qty_to_buy}</td>
-                                <td className="text-right text-gray-400 text-xs">{item.purchase_unit || item.unit_measure}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t text-gray-500 font-medium">
-                            <td className="pt-1" colSpan={5}>
-                              {itemsCache[c.id].filter(i => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).length} itens contados
-                              {' · '}
-                              {itemsCache[c.id].filter(i => Number(i.qty_to_buy) > 0).length} a comprar
+                    ) : itemsCache[c.id] ? (() => {
+                      const canEdit = isOwner && c.status === 'finalizada';
+                      const countEdits = editsCache[c.id] || [];
+                      const editedFields = new Set(countEdits.map((e) => `${e.product_id}_${e.field}`));
+
+                      function EditableCell({ countId, productId, field, value }) {
+                        const isEditing = editingCell?.countId === countId && editingCell?.productId === productId && editingCell?.field === field;
+                        const wasEdited = editedFields.has(`${productId}_${field}`);
+                        if (isEditing) {
+                          return (
+                            <td className="text-right">
+                              <input
+                                ref={editInputRef}
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={saveEdit}
+                                onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingCell(null); }}
+                                className="w-16 text-right border border-blue-400 rounded px-1 py-0 text-xs font-mono bg-white"
+                                disabled={editSaving}
+                              />
                             </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    ) : null}
+                          );
+                        }
+                        return (
+                          <td
+                            className={`text-right font-mono ${canEdit ? 'cursor-pointer hover:bg-blue-50 rounded' : ''} ${wasEdited ? 'text-blue-600' : ''}`}
+                            onClick={canEdit ? () => startEdit(countId, productId, field, value) : undefined}
+                            title={canEdit ? 'Clique para editar' : undefined}
+                          >
+                            {value}{wasEdited && <span className="text-blue-400 ml-0.5">✎</span>}
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <>
+                          {canEdit && <p className="text-xs text-blue-500 mt-2 mb-1">Clique em um valor para corrigir.</p>}
+                          <table className="w-full text-xs mt-1">
+                            <thead>
+                              <tr className="text-gray-500 border-b">
+                                <th className="text-left pb-1">Produto</th>
+                                <th className="text-right pb-1">Qtd Tem</th>
+                                <th className="text-right pb-1">Un. Tem</th>
+                                <th className="text-right pb-1">Qtd Comprar</th>
+                                <th className="text-right pb-1">Un. Comprar</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {itemsCache[c.id].filter((i) => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).map((item, idx) => {
+                                const isZero = Number(item.current_stock) === 0;
+                                const hasToBuy = Number(item.qty_to_buy) > 0;
+                                const rowCls = [isZero ? 'text-gray-300' : '', hasToBuy ? 'bg-yellow-50' : ''].filter(Boolean).join(' ');
+                                return (
+                                  <tr key={item.product_id} className={`border-b border-gray-100 ${rowCls}`}>
+                                    <td className="py-1 text-gray-700">{item.name}</td>
+                                    <EditableCell countId={c.id} productId={item.product_id} field="current_stock" value={item.current_stock} />
+                                    <td className="text-right text-gray-400 text-xs">{item.unit_measure}</td>
+                                    <EditableCell countId={c.id} productId={item.product_id} field="qty_to_buy" value={item.qty_to_buy} />
+                                    <td className="text-right text-gray-400 text-xs">{item.purchase_unit || item.unit_measure}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t text-gray-500 font-medium">
+                                <td className="pt-1" colSpan={5}>
+                                  {itemsCache[c.id].filter(i => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).length} itens contados
+                                  {' · '}
+                                  {itemsCache[c.id].filter(i => Number(i.qty_to_buy) > 0).length} a comprar
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                          {canEdit && countEdits.length > 0 && (
+                            <div className="mt-3 border-t pt-2">
+                              <p className="text-xs font-medium text-gray-500 mb-1">Histórico de edições</p>
+                              {countEdits.map((e, i) => (
+                                <p key={i} className="text-xs text-gray-400">
+                                  <span className="text-gray-600">{e.product_name}</span>
+                                  {' — '}
+                                  {e.field === 'qty_to_buy' ? 'qtd a comprar' : 'estoque atual'}
+                                  {': '}
+                                  <span className="line-through">{e.old_value}</span>
+                                  {' → '}
+                                  <span className="text-blue-600 font-medium">{e.new_value}</span>
+                                  {' por '}{e.edited_by_name}
+                                  {' · '}{fmtDate(e.edited_at)}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })() : null}
                   </div>
                 )}
               </div>

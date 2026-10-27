@@ -2,7 +2,7 @@ const express = require('express');
 const { authenticate, requireRole } = require('../middleware/auth');
 const asyncHandler = require('../middleware/asyncHandler');
 const {
-  startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport, getHistory, getSuggestions, deleteCount,
+  startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport, getHistory, getSuggestions, deleteCount, editFinalizedItem, getItemEdits,
 } = require('../controllers/stockCountController');
 
 const router = express.Router();
@@ -34,5 +34,7 @@ router.post('/:id/save', asyncHandler(saveCount));
 router.post('/:id/finalize', requireRole('gerente'), asyncHandler(finalizeCount));
 router.delete('/:id', requireRole('gerente'), asyncHandler(deleteCount));
 router.get('/:id/report', requireRole('gerente'), asyncHandler(getReport));
+router.put('/:id/items/edit', requireRole(), asyncHandler(editFinalizedItem));
+router.get('/:id/item-edits', requireRole(), asyncHandler(getItemEdits));
 
 module.exports = router;

@@ -193,6 +193,18 @@ async function startServer() {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock_piracicaba NUMERIC DEFAULT 0`);
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_per_package NUMERIC`);
     await pool.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS canal_preferencial TEXT`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS stock_count_edits (
+        id SERIAL PRIMARY KEY,
+        stock_count_id INTEGER NOT NULL REFERENCES stock_counts(id) ON DELETE CASCADE,
+        product_id INTEGER NOT NULL REFERENCES products(id),
+        field TEXT NOT NULL,
+        old_value NUMERIC,
+        new_value NUMERIC,
+        edited_by INTEGER REFERENCES users(id),
+        edited_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
     console.log('[startup] Colunas de supplier token verificadas.');
   } catch (e) {
     console.error('[startup] Erro ao verificar colunas de supplier token:', e.message);
