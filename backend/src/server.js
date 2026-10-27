@@ -67,53 +67,6 @@ app.use('/api/conferencia-pedido', conferenciaPedidoRoutes);
 app.use('/api/conferencia-entrega', conferenciaEntregaRoutes);
 app.get('/api/export', authenticate, requireRole('dono'), asyncHandler(exportData));
 
-// ENDPOINT TEMPORÁRIO — remover após uso
-app.get('/api/fix-produtos', async (req, res) => {
-  if (req.query.secret !== 'bm-fix-oct2026') return res.status(403).json({ error: 'Proibido.' });
-  const pool = require('./db/pool');
-  const fixes = [];
-  try {
-    const run = async (name, sql, params) => {
-      const r = await pool.query(sql, params);
-      fixes.push({ produto: name, linhas: r.rowCount });
-    };
-    await run('Catupiry',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Kilo', box_qty=12, box_unit_weight=0.85 WHERE LOWER(name) ILIKE '%catupiry%'`);
-    await run('Coca Cola 2 Litros',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Garrafa', box_qty=6, box_unit_weight=NULL WHERE LOWER(name) ILIKE '%coca%cola%2%litro%' AND LOWER(name) NOT ILIKE '%zero%'`);
-    await run('Coca Cola 2 Litros Zero',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Garrafa', box_qty=6, box_unit_weight=NULL WHERE LOWER(name) ILIKE '%coca%' AND LOWER(name) ILIKE '%zero%' AND LOWER(name) ILIKE '%2%litro%'`);
-    await run('Coca Cola Zero 350ml',
-      `UPDATE products SET purchase_unit='Fardo', price_unit='Lata', box_qty=12, box_unit_weight=NULL WHERE LOWER(name) ILIKE '%coca%' AND LOWER(name) ILIKE '%zero%' AND LOWER(name) ILIKE '%350%'`);
-    await run('Apresuntado Aurora',
-      `UPDATE products SET purchase_unit='Peça', price_unit='Kilo', box_qty=NULL, box_unit_weight=3.5 WHERE LOWER(name) ILIKE '%apresuntado%aurora%'`);
-    await run('Nutella 3KG',
-      `UPDATE products SET purchase_unit='Balde', price_unit='Balde', box_qty=NULL, box_unit_weight=NULL WHERE LOWER(name) ILIKE '%nutella%3%'`);
-    await run('Brocolis Picado',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Kilo', box_qty=10, box_unit_weight=0.5 WHERE LOWER(unaccent(name)) ILIKE '%brocolis%picado%'`);
-    await run('Calabresa Reta',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Kilo', box_qty=1, box_unit_weight=10 WHERE LOWER(name) ILIKE '%calabresa%reta%'`);
-    await run('Farinha Anaconda',
-      `UPDATE products SET purchase_unit='Fardo', price_unit='Fardo', box_qty=NULL, box_unit_weight=NULL WHERE LOWER(name) ILIKE '%anaconda%' AND LOWER(name) ILIKE '%farinha%'`);
-    await run('Guarana Antarctica 1L',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Garrafa', box_qty=12, box_unit_weight=NULL WHERE LOWER(unaccent(name)) ILIKE '%guarana%' AND (LOWER(name) ILIKE '%1 litro%' OR LOWER(name) ILIKE '%1litro%' OR LOWER(name) ILIKE '%1l%')`);
-    await run('Filezinho de Sassami',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Kilo', box_qty=5, box_unit_weight=2.0 WHERE LOWER(name) ILIKE '%filezinho%sassami%'`);
-    await run('Palmito Atracao',
-      `UPDATE products SET purchase_unit='Caixa', price_unit='Lata', box_qty=24, box_unit_weight=NULL WHERE LOWER(unaccent(name)) ILIKE '%palmito%' AND LOWER(unaccent(name)) ILIKE '%atr%'`);
-
-    // Retornar estado atual dos produtos corrigidos
-    const check = await pool.query(
-      `SELECT name, purchase_unit, price_unit, box_qty, box_unit_weight FROM products
-       WHERE LOWER(name) ILIKE ANY(ARRAY['%catupiry%','%coca%','%apresuntado%','%nutella%3%','%sassami%','%palmito%','%anaconda%','%calabresa%reta%'])
-       ORDER BY name`
-    );
-    res.json({ ok: true, fixes, produtos: check.rows });
-  } catch (e) {
-    res.status(500).json({ error: e.message, fixes });
-  }
-});
-
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Erro interno do servidor.' });
