@@ -640,8 +640,8 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
             </div>
             {altBrand && (
               <div className="mt-1">
-                <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">
-                  🏷 Outra marca: {altBrand}
+                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${isWinner ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700'}`}>
+                  ⚠ Outra marca: {altBrand}{isWinner ? ' — VENCEDOR!' : ''}
                 </span>
               </div>
             )}
@@ -754,8 +754,8 @@ function BestPriceTab({ data }) {
             </div>
             {altBrand && (
               <div className="mt-1">
-                <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">
-                  🏷 Outra marca: {altBrand} <span className="font-normal text-amber-600">({best?.supplier})</span>
+                <span className="inline-flex items-center gap-1 text-xs bg-red-600 text-white px-2 py-0.5 rounded-full font-medium">
+                  ⚠ Outra marca: {altBrand} <span className="font-normal opacity-90">({best?.supplier})</span>
                 </span>
               </div>
             )}
