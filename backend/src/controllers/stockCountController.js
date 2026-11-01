@@ -325,6 +325,38 @@ async function getHistory(req, res) {
   res.json(result.rows);
 }
 
+async function getRecentPurchases(req, res) {
+  const { unitId } = req.params;
+
+  const recentCounts = await pool.query(
+    `SELECT id, finalized_at FROM stock_counts
+     WHERE unit_id = $1 AND status = 'finalizada'
+     ORDER BY COALESCE(finalized_at, created_at) DESC LIMIT 2`,
+    [unitId]
+  );
+  if (recentCounts.rows.length === 0) return res.json({ counts: [], purchases: {} });
+
+  const countIds = recentCounts.rows.map((r) => r.id);
+
+  const items = await pool.query(
+    `SELECT sci.product_id, sci.stock_count_id, sci.qty_to_buy
+     FROM stock_count_items sci
+     WHERE sci.stock_count_id = ANY($1::int[])`,
+    [countIds]
+  );
+
+  const purchases = {};
+  for (const row of items.rows) {
+    if (!purchases[row.product_id]) purchases[row.product_id] = [];
+    purchases[row.product_id].push({
+      count_id: row.stock_count_id,
+      qty_to_buy: Number(row.qty_to_buy),
+    });
+  }
+
+  res.json({ counts: recentCounts.rows, purchases });
+}
+
 async function getSuggestions(req, res) {
   const { unitId } = req.params;
   const result = await pool.query(
@@ -413,4 +445,4 @@ async function getItemEdits(req, res) {
   res.json(result.rows);
 }
 
-module.exports = { startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport, getHistory, getSuggestions, deleteCount, editFinalizedItem, getItemEdits };
+module.exports = { startOrGetOpenCount, getCount, saveItem, saveCount, finalizeCount, getReport, getHistory, getSuggestions, getRecentPurchases, deleteCount, editFinalizedItem, getItemEdits };

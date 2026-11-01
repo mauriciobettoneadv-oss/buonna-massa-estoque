@@ -72,7 +72,12 @@ function StepButton({ onClick, disabled, label }) {
   );
 }
 
-function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave }) {
+function fmtCountDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function SortableItem({ item, isReadOnly, search, suggestions, recentPurchases, onUpdate, onSave }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.product_id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -85,6 +90,8 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
   const buyStep = isDecimalUnit(item.purchase_unit || item.unit_measure) ? 0.1 : 1;
   const sugg = suggestions[item.product_id];
   const buyUnit = item.purchase_unit || item.unit_measure;
+  const productPurchases = (recentPurchases.purchases || {})[item.product_id] || [];
+  const recentCounts = recentPurchases.counts || [];
 
   function adj(field, delta) {
     const current = Number(item[field]) || 0;
@@ -145,7 +152,30 @@ function SortableItem({ item, isReadOnly, search, suggestions, onUpdate, onSave 
             <StepButton onClick={() => { adj('qty_to_buy', buyStep); onSave({ ...item, qty_to_buy: Number(item.qty_to_buy) + buyStep }); }} disabled={isReadOnly} label="+" />
             {buyUnit && <span className="text-xs text-gray-400 whitespace-nowrap">{buyUnit}</span>}
           </div>
-          {sugg && sugg.n_counts > 0 && (
+          {recentCounts.length > 0 && (
+            <div className="mt-1 space-y-0.5">
+              {recentCounts.map((c, idx) => {
+                const p = productPurchases.find((pp) => pp.count_id === c.id);
+                const qty = p ? p.qty_to_buy : 0;
+                return (
+                  <p key={c.id} className="text-xs text-gray-400">
+                    <span className="text-gray-500 font-medium">{idx === 0 ? 'Sem. passada' : 'Há 2 sem.'}</span>
+                    {': '}
+                    <span className={qty > 0 ? 'text-gray-600' : 'text-gray-300'}>
+                      {qty > 0 ? `${qty} ${buyUnit}` : '—'}
+                    </span>
+                    <span className="text-gray-300 ml-1">({fmtCountDate(c.finalized_at)})</span>
+                  </p>
+                );
+              })}
+              {sugg && sugg.n_counts > 0 && (
+                <p className="text-xs text-gray-400">
+                  Média {sugg.n_counts >= 4 ? '4' : sugg.n_counts} sem.: {sugg.avg_qty} {buyUnit}
+                </p>
+              )}
+            </div>
+          )}
+          {!recentCounts.length && sugg && sugg.n_counts > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">
               Média {sugg.n_counts >= 4 ? '4' : sugg.n_counts} sem.: {sugg.avg_qty} {buyUnit}
             </p>
@@ -165,6 +195,7 @@ export default function Counting() {
   const [countStatus, setCountStatus] = useState('aberta');
   const [items, setItems] = useState([]);
   const [suggestions, setSuggestions] = useState({});
+  const [recentPurchases, setRecentPurchases] = useState({ counts: [], purchases: {} });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
@@ -195,9 +226,12 @@ export default function Counting() {
       const data = await request(`/stock-counts/${count.id}`, { token });
       setItems(data.items);
       setCountStatus(data.count.status);
-      // Load suggestions in background
+      // Load suggestions and recent purchases in background
       request(`/stock-counts/suggestions/${id}`, { token })
         .then(setSuggestions)
+        .catch(() => {});
+      request(`/stock-counts/recent-purchases/${id}`, { token })
+        .then(setRecentPurchases)
         .catch(() => {});
     } catch (err) {
       setError(err.message);
@@ -368,6 +402,7 @@ export default function Counting() {
                   isReadOnly={isReadOnly}
                   search={search}
                   suggestions={suggestions}
+                  recentPurchases={recentPurchases}
                   onUpdate={updateLocalItem}
                   onSave={saveItem}
                 />
