@@ -460,7 +460,8 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
       const link = `${window.location.origin}/cotacao/${accessToken}`;
       const hour = new Date().getHours();
       const greeting = hour >= 6 && hour < 12 ? 'Bom dia' : hour >= 12 && hour < 18 ? 'Boa tarde' : 'Boa noite';
-      const firstName = supplier.name.split(' ')[0];
+      const contactName = supplier.contact_name || supplier.name;
+      const firstName = contactName.split(' ')[0];
       const message = `${greeting}, ${firstName}! Tudo bem?\nCota para mim, por favor:\n${link}`;
       await navigator.clipboard.writeText(message).catch(() => {});
       setLinkCopied(true);

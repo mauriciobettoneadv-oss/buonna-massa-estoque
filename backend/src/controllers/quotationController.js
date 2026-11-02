@@ -80,7 +80,10 @@ async function getQuotation(req, res) {
 
   // Suppliers (with delivery_cities from global registry)
   const suppliers = await pool.query(
-    `SELECT qs.*, s.delivery_cities
+    `SELECT qs.*, s.delivery_cities,
+            (SELECT suc.contact_name FROM supplier_unit_contacts suc
+             WHERE suc.supplier_id = s.id AND suc.contact_name IS NOT NULL
+             LIMIT 1) AS contact_name
      FROM quotation_suppliers qs
      LEFT JOIN suppliers s ON s.id = qs.supplier_id
      WHERE qs.quotation_id = $1 ORDER BY qs.id`,
