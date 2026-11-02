@@ -62,7 +62,7 @@ async function getQuotation(req, res) {
        JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
        WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0
      )
-     ORDER BY p.ordem ASC NULLS LAST, p.name ASC`,
+     ORDER BY p.ordem ASC NULLS LAST, p.id ASC`,
     [id]
   );
 

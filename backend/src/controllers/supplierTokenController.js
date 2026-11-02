@@ -59,7 +59,7 @@ async function getQuotationByToken(req, res) {
        WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0
        GROUP BY sci.product_id
      ) agg ON agg.product_id = p.id
-     ORDER BY p.ordem ASC NULLS LAST, p.name ASC`,
+     ORDER BY p.ordem ASC NULLS LAST, p.id ASC`,
     [quotationId]
   );
 

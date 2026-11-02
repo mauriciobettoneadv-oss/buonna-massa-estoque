@@ -73,7 +73,7 @@ async function getCount(req, res) {
      LEFT JOIN stock_count_items sci
        ON sci.product_id = p.id AND sci.stock_count_id = $1
      WHERE p.active = TRUE
-     ORDER BY p.ordem ASC NULLS LAST`,
+     ORDER BY p.ordem ASC NULLS LAST, p.id ASC`,
     [id]
   );
 
