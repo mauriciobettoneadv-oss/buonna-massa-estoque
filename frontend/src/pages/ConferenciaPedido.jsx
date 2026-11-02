@@ -87,6 +87,7 @@ export default function ConferenciaPedido() {
           qty_recebida: totalQty,
           valor_cobrado: bestPrice,
           conferido: false,
+          aceito: false,
         };
       });
       setItens(builtItens);
@@ -102,6 +103,7 @@ export default function ConferenciaPedido() {
   }
 
   function isDivergente(item) {
+    if (item.aceito) return false;
     return (
       Number(item.qty_recebida) !== Number(item.qty_pedida) ||
       Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
@@ -266,14 +268,26 @@ export default function ConferenciaPedido() {
                         <div className="flex items-start justify-between mb-2">
                           <span className="font-semibold text-gray-800">{item.name}</span>
                           {item.conferido && (
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${div ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                              {div ? '🔴 Divergente' : '✅ OK'}
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${item.aceito ? 'bg-gray-100 text-gray-500' : div ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                              {item.aceito ? '✓ Aceito' : div ? '🔴 Divergente' : '✅ OK'}
                             </span>
                           )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600 mb-3">
-                          <span>Pedido: <strong>{item.qty_pedida} {item.purchase_unit}</strong></span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Pedido:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.001"
+                              value={item.qty_pedida}
+                              onChange={(e) => updateItem(item._idx, 'qty_pedida', e.target.value)}
+                              className="border border-gray-300 rounded px-2 py-0.5 text-sm w-20 text-center focus:border-brand-red focus:outline-none"
+                              title="Corrija a quantidade pedida se necessário"
+                            />
+                            <span className="text-gray-600 font-medium">{item.purchase_unit}</span>
+                          </div>
                           <span>Preço acordado: <strong>{fmt(item.preco_acordado)}</strong></span>
                         </div>
 
@@ -287,7 +301,7 @@ export default function ConferenciaPedido() {
                               value={item.qty_recebida}
                               onChange={(e) => updateItem(item._idx, 'qty_recebida', e.target.value)}
                               className={`border rounded px-3 py-1.5 text-sm w-32 text-center ${
-                                item.conferido && Number(item.qty_recebida) !== Number(item.qty_pedida)
+                                item.conferido && !item.aceito && Number(item.qty_recebida) !== Number(item.qty_pedida)
                                   ? 'border-red-400 bg-red-50'
                                   : 'border-gray-300'
                               }`}
@@ -302,21 +316,38 @@ export default function ConferenciaPedido() {
                               value={item.valor_cobrado}
                               onChange={(e) => updateItem(item._idx, 'valor_cobrado', e.target.value)}
                               className={`border rounded px-3 py-1.5 text-sm w-28 text-center ${
-                                item.conferido && Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
+                                item.conferido && !item.aceito && Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
                                   ? 'border-red-400 bg-red-50'
                                   : 'border-gray-300'
                               }`}
                             />
                           </div>
-                          {item.conferido && div && (
-                            <div className="text-xs text-red-600">
-                              {Number(item.qty_recebida) !== Number(item.qty_pedida) && (
-                                <div>Pedimos {item.qty_pedida}, vendedor lançou {item.qty_recebida}</div>
-                              )}
-                              {Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001 && (
-                                <div>Acordado {fmt(item.preco_acordado)}, cobrado {fmt(item.valor_cobrado)}</div>
-                              )}
+                          {item.conferido && div && !item.aceito && (
+                            <div className="flex flex-col gap-1">
+                              <div className="text-xs text-red-600">
+                                {Number(item.qty_recebida) !== Number(item.qty_pedida) && (
+                                  <div>Pedimos {item.qty_pedida}, vendedor lançou {item.qty_recebida}</div>
+                                )}
+                                {Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001 && (
+                                  <div>Acordado {fmt(item.preco_acordado)}, cobrado {fmt(item.valor_cobrado)}</div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => updateItem(item._idx, 'aceito', true)}
+                                className="text-xs text-gray-500 border border-gray-300 rounded px-2 py-0.5 hover:bg-gray-50 self-start"
+                                title="Aceitar esta divergência (ex: peso estimado, unidade diferente)"
+                              >
+                                ✓ Aceitar divergência
+                              </button>
                             </div>
+                          )}
+                          {item.aceito && (
+                            <button
+                              onClick={() => updateItem(item._idx, 'aceito', false)}
+                              className="text-xs text-gray-400 hover:text-red-500 self-end"
+                            >
+                              desfazer
+                            </button>
                           )}
                         </div>
                       </div>
