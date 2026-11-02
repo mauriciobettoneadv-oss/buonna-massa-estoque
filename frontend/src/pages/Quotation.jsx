@@ -458,7 +458,11 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
         onTokenGenerated(supplier.id, result);
       }
       const link = `${window.location.origin}/cotacao/${accessToken}`;
-      await navigator.clipboard.writeText(link).catch(() => {});
+      const hour = new Date().getHours();
+      const greeting = hour >= 6 && hour < 12 ? 'Bom dia' : hour >= 12 && hour < 18 ? 'Boa tarde' : 'Boa noite';
+      const firstName = supplier.name.split(' ')[0];
+      const message = `${greeting}, ${firstName}! Tudo bem?\nCota para mim, por favor:\n${link}`;
+      await navigator.clipboard.writeText(message).catch(() => {});
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 3000);
     } catch (e) {
