@@ -53,6 +53,9 @@ export default function Suppliers() {
   const [savedContactToast, setSavedContactToast] = useState(null); // unit_id
   const [expandedUnit, setExpandedUnit] = useState(null);
   const [mesmoVendedor, setMesmoVendedor] = useState(false);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
+  const [savingShared, setSavingShared] = useState(false);
+  const [savedShared, setSavedShared] = useState(false);
   const [error, setError] = useState('');
 
   const loadSuppliers = useCallback(async () => {
@@ -106,6 +109,7 @@ export default function Suppliers() {
   async function handleCreate(e) {
     e.preventDefault();
     setError('');
+    setCreatingSupplier(true);
     try {
       const body = {
         ...form,
@@ -118,8 +122,11 @@ export default function Suppliers() {
       setSuppliers([...suppliers, { ...created, product_count: '0' }]);
       setShowForm(false);
       setForm(EMPTY_SUPPLIER);
+      await openDetail(created);
     } catch (err) {
       setError(err.message || 'Erro ao criar fornecedor.');
+    } finally {
+      setCreatingSupplier(false);
     }
   }
 
@@ -555,23 +562,34 @@ export default function Suppliers() {
                   />
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  const shared = unitContacts['shared'] || {};
-                  for (const unit of units) {
-                    const existing = unitContacts[unit.id] || {};
-                    setUnitContacts(uc => ({
-                      ...uc,
-                      [unit.id]: { ...existing, contact_name: shared.contact_name || '', phone: shared.phone || '', email: shared.email || '' },
-                    }));
-                    await handleSaveUnitContact(unit.id);
-                  }
-                }}
-                className="mt-3 bg-brand-red text-white px-4 py-1.5 rounded-lg text-xs font-medium hover:opacity-90"
-              >
-                Salvar contato para todas as unidades
-              </button>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={savingShared}
+                  onClick={async () => {
+                    setSavingShared(true);
+                    setSavedShared(false);
+                    try {
+                      const shared = unitContacts['shared'] || {};
+                      for (const unit of units) {
+                        const existing = unitContacts[unit.id] || {};
+                        setUnitContacts(uc => ({
+                          ...uc,
+                          [unit.id]: { ...existing, contact_name: shared.contact_name || '', phone: shared.phone || '', email: shared.email || '' },
+                        }));
+                        await handleSaveUnitContact(unit.id);
+                      }
+                      setSavedShared(true);
+                      setTimeout(() => setSavedShared(false), 2500);
+                    } finally {
+                      setSavingShared(false);
+                    }
+                  }}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 ${savedShared ? 'bg-green-600 text-white' : 'bg-brand-red text-white hover:opacity-90'}`}
+                >
+                  {savingShared ? 'Salvando...' : savedShared ? '✓ Salvo!' : 'Salvar contato para todas as unidades'}
+                </button>
+              </div>
               <div className="mt-4">
                 <p className="text-xs font-medium text-gray-600 mb-2">Dias de entrega por unidade</p>
                 {units.map(unit => {
@@ -893,9 +911,10 @@ export default function Suppliers() {
           <div className="flex gap-3 mt-4">
             <button
               type="submit"
-              className="bg-brand-red text-white px-5 py-2 rounded-lg text-sm font-medium hover:opacity-90"
+              disabled={creatingSupplier}
+              className="bg-brand-red text-white px-5 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-60"
             >
-              Criar Fornecedor
+              {creatingSupplier ? 'Criando...' : 'Criar Fornecedor'}
             </button>
             <button
               type="button"

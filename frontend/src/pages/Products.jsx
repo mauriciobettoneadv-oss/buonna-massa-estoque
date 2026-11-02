@@ -37,6 +37,9 @@ export default function Products() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [showHidden, setShowHidden] = useState(false);
+  const [savingAdd, setSavingAdd] = useState(false);
+  const [savedAdd, setSavedAdd] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   async function loadProducts() {
     const data = await request('/products?includeInactive=true', { token });
@@ -50,6 +53,7 @@ export default function Products() {
   async function handleAdd(e) {
     e.preventDefault();
     setError('');
+    setSavingAdd(true);
     try {
       const body = {
         ...addForm,
@@ -63,14 +67,19 @@ export default function Products() {
       await request('/products', { method: 'POST', token, body });
       setAddForm(emptyForm);
       setShowAddForm(false);
+      setSavedAdd(true);
+      setTimeout(() => setSavedAdd(false), 2500);
       await loadProducts();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSavingAdd(false);
     }
   }
 
   async function handleSaveEdit(productId) {
     setError('');
+    setSavingEdit(true);
     try {
       const body = {
         ...editForm,
@@ -87,6 +96,8 @@ export default function Products() {
       await loadProducts();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -233,9 +244,9 @@ export default function Products() {
             </div>
           </div>
 
-          <div className="col-span-2 flex gap-2">
-            <button type="submit" className="bg-brand-red text-white rounded px-4 py-2 font-medium hover:opacity-90">
-              Adicionar produto
+          <div className="col-span-2 flex gap-2 items-center">
+            <button type="submit" disabled={savingAdd} className={`rounded px-4 py-2 font-medium text-white transition-colors disabled:opacity-70 ${savedAdd ? 'bg-green-600' : 'bg-brand-red hover:opacity-90'}`}>
+              {savingAdd ? 'Adicionando...' : savedAdd ? '✓ Adicionado!' : 'Adicionar produto'}
             </button>
           </div>
         </form>
@@ -332,8 +343,10 @@ export default function Products() {
                       </div>
 
                       <div className="flex gap-2">
-                        <button onClick={() => handleSaveEdit(p.id)} className="bg-green-600 text-white rounded px-3 py-1 text-sm font-medium hover:opacity-90">✓ Salvar</button>
-                        <button onClick={cancelEdit} className="bg-gray-200 text-gray-700 rounded px-3 py-1 text-sm font-medium hover:bg-gray-300">✗ Cancelar</button>
+                        <button onClick={() => handleSaveEdit(p.id)} disabled={savingEdit} className="bg-green-600 text-white rounded px-3 py-1 text-sm font-medium hover:opacity-90 disabled:opacity-60">
+                          {savingEdit ? '⟳ Salvando...' : '✓ Salvar'}
+                        </button>
+                        <button onClick={cancelEdit} disabled={savingEdit} className="bg-gray-200 text-gray-700 rounded px-3 py-1 text-sm font-medium hover:bg-gray-300 disabled:opacity-60">✗ Cancelar</button>
                       </div>
                     </td>
                   </tr>
