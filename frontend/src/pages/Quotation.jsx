@@ -436,6 +436,8 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
   const [pasting, setPasting] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [savingPrices, setSavingPrices] = useState(false);
+  const [savedPrices, setSavedPrices] = useState(false);
   const [search, setSearch] = useState('');
   const sp = localPrices[supplier.id] || {};
 
@@ -555,8 +557,22 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
             >
               📋 Colar cotação
             </button>
-            <button onClick={() => onSave(supplier.id)} className="bg-brand-red text-white rounded px-3 py-1 text-sm hover:opacity-90">
-              Salvar preços
+            <button
+              onClick={async () => {
+                setSavingPrices(true);
+                setSavedPrices(false);
+                try {
+                  await onSave(supplier.id);
+                  setSavedPrices(true);
+                  setTimeout(() => setSavedPrices(false), 2500);
+                } finally {
+                  setSavingPrices(false);
+                }
+              }}
+              disabled={savingPrices}
+              className={`rounded px-3 py-1 text-sm font-medium transition-colors disabled:opacity-70 ${savedPrices ? 'bg-green-600 text-white' : 'bg-brand-red text-white hover:opacity-90'}`}
+            >
+              {savingPrices ? '⟳ Salvando...' : savedPrices ? '✓ Salvo!' : 'Salvar preços'}
             </button>
             <button onClick={() => onDelete(supplier.id)} className="text-red-500 text-sm hover:underline">Remover</button>
           </div>
