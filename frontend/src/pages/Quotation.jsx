@@ -1038,48 +1038,22 @@ export default function Quotation() {
 
       {/* List */}
       {!selectedId && (
-        <div>
-          {/* Abertas */}
-          <div className="bg-white rounded-lg shadow divide-y mb-4">
-            <div className="px-4 py-2 bg-gray-50 rounded-t-lg">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Abertas ({openQuotations.length})</span>
-            </div>
-            {openQuotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação aberta.</p>}
-            {openQuotations.map((q) => (
+        <div className="bg-white rounded-lg shadow divide-y">
+          {quotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação encontrada.</p>}
+          {quotations.map((q) => {
+            const closed = q.status === 'fechada';
+            return (
               <button key={q.id} onClick={() => { setSelectedId(q.id); setActiveTab(null); setShowOrders(false); }}
-                className="w-full text-left flex items-center gap-3 p-3 hover:bg-gray-50">
+                className={`w-full text-left flex items-center gap-3 p-3 hover:bg-gray-50 ${closed ? 'opacity-70' : ''}`}>
                 <span className="text-sm font-medium">Cotação #{q.id}</span>
                 <span className="text-xs text-gray-500">{q.units?.join(' + ')}</span>
                 <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('pt-BR')}</span>
-                <span className="ml-auto text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">{q.status || 'aberta'}</span>
+                <span className={`ml-auto text-xs px-2 py-1 rounded-full ${closed ? 'bg-gray-200 text-gray-600' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {closed ? 'fechada' : q.status || 'aberta'}
+                </span>
               </button>
-            ))}
-          </div>
-
-          {/* Fechadas */}
-          <div className="bg-white rounded-lg shadow divide-y">
-            <button
-              className="w-full flex items-center justify-between px-4 py-2 bg-gray-50 rounded-t-lg hover:bg-gray-100"
-              onClick={() => setShowClosed((v) => !v)}
-            >
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fechadas/Concluídas ({closedQuotations.length})</span>
-              <span className="text-xs text-gray-400">{showClosed ? '▲ Ocultar' : '▼ Mostrar cotações fechadas'}</span>
-            </button>
-            {showClosed && (
-              <>
-                {closedQuotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação fechada.</p>}
-                {closedQuotations.map((q) => (
-                  <button key={q.id} onClick={() => { setSelectedId(q.id); setActiveTab(null); setShowOrders(false); }}
-                    className="w-full text-left flex items-center gap-3 p-3 hover:bg-gray-50 opacity-70">
-                    <span className="text-sm font-medium">Cotação #{q.id}</span>
-                    <span className="text-xs text-gray-500">{q.units?.join(' + ')}</span>
-                    <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('pt-BR')}</span>
-                    <span className="ml-auto text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-600">Concluída</span>
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
+            );
+          })}
         </div>
       )}
 
