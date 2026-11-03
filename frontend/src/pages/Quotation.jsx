@@ -149,6 +149,7 @@ function OrdersView({ quotationId, token, onBack }) {
   const [qtyOverrides, setQtyOverrides] = useState({});
   const [supplierOverrides, setSupplierOverrides] = useState({});
   const [openPicker, setOpenPicker] = useState(null);
+  const [useAltBrand, setUseAltBrand] = useState({});
 
   useEffect(() => {
     request(`/quotations/${quotationId}/orders`, { token }).then(setData);
@@ -192,6 +193,12 @@ function OrdersView({ quotationId, token, onBack }) {
     });
   }
 
+  function effAltBrand(unitName, item) {
+    const k = ovrKey(unitName, item.product_id);
+    if (supplierOverrides[k] !== undefined) return supplierOverrides[k].alt_brand || null;
+    return item.alt_brand || null;
+  }
+
   function buildSupplierMap() {
     const map = {};
     for (const order of orders) {
@@ -217,6 +224,7 @@ function OrdersView({ quotationId, token, onBack }) {
         const price = effUnitPrice(unitName, item);
         const total = qty * price * (item.multiplier || 1);
         grandTotal += total;
+        const altBrandNote = useAltBrand[item.product_id] ? effAltBrand(unitName, item) : null;
         text += `• ${item.name}: ${qty} ${item.purchase_unit}`;
         if (price > 0) {
           if (item.price_unit && item.price_unit.toLowerCase() !== (item.purchase_unit || '').toLowerCase()) {
@@ -225,6 +233,7 @@ function OrdersView({ quotationId, token, onBack }) {
             text += ` × ${fmt(price)} = ${fmt(total)}`;
           }
         }
+        if (altBrandNote) text += ` ⚠ marca alternativa: ${altBrandNote}`;
         text += '\n';
       }
       const sub = items.reduce((s, i) => s + effTotal(unitName, i), 0);
@@ -269,7 +278,7 @@ function OrdersView({ quotationId, token, onBack }) {
                     setSupplierOverrides((prev) => {
                       const isOriginal = opt.supplier_name === item.supplier_name && opt.unit_price === (item.unit_price || 0);
                       if (isOriginal) { const n = { ...prev }; delete n[k]; return n; }
-                      return { ...prev, [k]: { supplier_name: opt.supplier_name, unit_price: opt.unit_price } };
+                      return { ...prev, [k]: { supplier_name: opt.supplier_name, unit_price: opt.unit_price, alt_brand: opt.alt_brand || null } };
                     });
                     setOpenPicker(null);
                   }}
@@ -288,6 +297,29 @@ function OrdersView({ quotationId, token, onBack }) {
             })}
           </div>
         )}
+      </div>
+    );
+  }
+
+  function renderAltBrandBadge(unitName, item) {
+    const alt = effAltBrand(unitName, item);
+    if (!alt) return null;
+    const on = !!useAltBrand[item.product_id];
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        <span className="inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
+          ⚠ Outra marca: {alt}
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); setUseAltBrand((p) => ({ ...p, [item.product_id]: !p[item.product_id] })); }}
+          className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+            on
+              ? 'border-red-500 bg-red-600 text-white font-semibold'
+              : 'border-gray-300 text-gray-500 hover:border-gray-500'
+          }`}
+        >
+          {on ? '✓ Testando marca alternativa' : 'Testar marca alternativa'}
+        </button>
       </div>
     );
   }
@@ -368,6 +400,7 @@ function OrdersView({ quotationId, token, onBack }) {
                                   )}
                                 </div>
                                 {renderSupplierPicker(unitName, item)}
+                                {renderAltBrandBadge(unitName, item)}
                               </div>
                             ))}
                           </div>
@@ -406,6 +439,7 @@ function OrdersView({ quotationId, token, onBack }) {
                           )}
                         </div>
                         {renderSupplierPicker(unitName, item)}
+                        {renderAltBrandBadge(unitName, item)}
                       </div>
                     ))
                   )}

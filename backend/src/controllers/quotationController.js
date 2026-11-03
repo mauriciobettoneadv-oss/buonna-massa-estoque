@@ -221,7 +221,20 @@ async function getOrders(req, res) {
                    OR s2.delivery_cities = '{}'
                    OR $2 = ANY(s2.delivery_cities)
                  )
-               ORDER BY qp2.unit_price ASC LIMIT 1) AS supplier_name
+               ORDER BY qp2.unit_price ASC LIMIT 1) AS supplier_name,
+              (SELECT qp2.alt_brand FROM quotation_prices qp2
+               JOIN quotation_suppliers qs2 ON qs2.id = qp2.supplier_id
+               LEFT JOIN suppliers s2 ON s2.id = qs2.supplier_id
+               WHERE qp2.product_id = qp.product_id
+                 AND qs2.quotation_id = $1
+                 AND qp2.unit_price > 0
+                 AND (
+                   s2.delivery_cities IS NULL
+                   OR array_length(s2.delivery_cities, 1) IS NULL
+                   OR s2.delivery_cities = '{}'
+                   OR $2 = ANY(s2.delivery_cities)
+                 )
+               ORDER BY qp2.unit_price ASC LIMIT 1) AS alt_brand
        FROM quotation_prices qp
        JOIN quotation_suppliers qs ON qs.id = qp.supplier_id
        LEFT JOIN suppliers s ON s.id = qs.supplier_id
@@ -239,7 +252,7 @@ async function getOrders(req, res) {
 
     const bestMap = {};
     for (const row of bestPrices.rows) {
-      bestMap[row.product_id] = { best_price: Number(row.best_price), supplier_name: row.supplier_name };
+      bestMap[row.product_id] = { best_price: Number(row.best_price), supplier_name: row.supplier_name, alt_brand: row.alt_brand || null };
     }
 
     const items = await pool.query(
@@ -275,6 +288,7 @@ async function getOrders(req, res) {
         multiplier,
         total_price: qty * unit_price * multiplier,
         supplier_name: best?.supplier_name || '—',
+        alt_brand: best?.alt_brand || null,
       };
     });
 
@@ -297,7 +311,7 @@ async function getOrders(req, res) {
   // All supplier options per product (for frontend override picker)
   const allOptions = await pool.query(
     `SELECT qp.product_id, qs.id AS supplier_id, qs.name AS supplier_name,
-            qp.unit_price, s.delivery_cities
+            qp.unit_price, qp.alt_brand, s.delivery_cities
      FROM quotation_prices qp
      JOIN quotation_suppliers qs ON qs.id = qp.supplier_id
      LEFT JOIN suppliers s ON s.id = qs.supplier_id
@@ -314,6 +328,7 @@ async function getOrders(req, res) {
       supplier_id: row.supplier_id,
       supplier_name: row.supplier_name,
       unit_price: Number(row.unit_price),
+      alt_brand: row.alt_brand || null,
       is_restricted: cities.length > 0,
       delivery_cities: cities,
     });
