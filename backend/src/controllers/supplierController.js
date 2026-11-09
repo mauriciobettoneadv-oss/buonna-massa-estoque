@@ -4,8 +4,7 @@ async function listSuppliers(req, res) {
   const result = await pool.query(
     `SELECT s.*,
             COUNT(spp.id) AS product_count,
-            array_agg(DISTINCT u.name) FILTER (WHERE u.name IS NOT NULL) AS contact_cities,
-            array_agg(DISTINCT suc.delivery_days) FILTER (WHERE suc.delivery_days IS NOT NULL AND suc.delivery_days <> '{}') AS contact_delivery_days
+            array_agg(DISTINCT u.name) FILTER (WHERE u.name IS NOT NULL) AS contact_cities
      FROM suppliers s
      LEFT JOIN supplier_product_prices spp ON spp.supplier_id = s.id
      LEFT JOIN supplier_unit_contacts suc ON suc.supplier_id = s.id
