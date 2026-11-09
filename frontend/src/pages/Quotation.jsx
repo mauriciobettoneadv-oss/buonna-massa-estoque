@@ -844,6 +844,7 @@ export default function Quotation() {
   const [newSupplierName, setNewSupplierName] = useState('');
   const [newSupplierId, setNewSupplierId] = useState('');
   const [globalSuppliers, setGlobalSuppliers] = useState([]);
+  const [globalSuppliersLoading, setGlobalSuppliersLoading] = useState(false);
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [error, setError] = useState('');
   const [quotationRequestText, setQuotationRequestText] = useState('');
@@ -872,9 +873,18 @@ export default function Quotation() {
   }
 
   useEffect(() => { loadList().catch(() => {}); }, [token]);
-  useEffect(() => {
-    request('/suppliers', { token }).then(setGlobalSuppliers).catch(() => {});
-  }, [token]);
+  async function loadGlobalSuppliers() {
+    setGlobalSuppliersLoading(true);
+    try {
+      const list = await request('/suppliers', { token });
+      setGlobalSuppliers(Array.isArray(list) ? list : []);
+    } catch (e) {
+      setGlobalSuppliers([]);
+    } finally {
+      setGlobalSuppliersLoading(false);
+    }
+  }
+  useEffect(() => { if (token) loadGlobalSuppliers(); }, [token]);
   useEffect(() => { if (selectedId) loadQuotation(selectedId).catch((e) => setError(e.message)); }, [selectedId]);
 
   function handleCreated(id) {
@@ -1090,6 +1100,17 @@ export default function Quotation() {
 
           {!isClosed && isOwner && (
             <div className="flex gap-2 mb-4 flex-wrap">
+              {globalSuppliersLoading && (
+                <span className="text-xs text-gray-400 self-center">Carregando fornecedores...</span>
+              )}
+              {!globalSuppliersLoading && globalSuppliers.length === 0 && (
+                <button
+                  onClick={loadGlobalSuppliers}
+                  className="text-xs text-brand-red border border-brand-red rounded-lg px-3 py-2 hover:bg-brand-red hover:text-white"
+                >
+                  ↺ Recarregar fornecedores
+                </button>
+              )}
               {globalSuppliers.length > 0 ? (
                 <select
                   value={newSupplierId}
