@@ -422,7 +422,12 @@ function OrdersView({ quotationId, token, onBack }) {
                                     <span className="text-xs text-gray-500">{item.purchase_unit}</span>
                                   </div>
                                   {effUnitPrice(unitName, item) > 0 && (
-                                    <span className="text-xs font-medium text-gray-700">{fmt(effTotal(unitName, item))}</span>
+                                    <div className="flex flex-col items-end gap-0.5">
+                                      <span className="text-xs text-gray-400">
+                                        × {fmt(effUnitPrice(unitName, item))}{item.price_unit && item.price_unit.toLowerCase() !== (item.purchase_unit || '').toLowerCase() ? `/${item.price_unit}` : ''}
+                                      </span>
+                                      <span className="text-xs font-medium text-gray-700">{fmt(effTotal(unitName, item))}</span>
+                                    </div>
                                   )}
                                 </div>
                                 {renderSupplierPicker(unitName, item)}
