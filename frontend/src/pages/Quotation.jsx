@@ -225,7 +225,7 @@ function OrdersView({ quotationId, token, onBack }) {
         const total = qty * price * (item.multiplier || 1);
         grandTotal += total;
         const altBrandNote = useAltBrand[item.product_id] ? effAltBrand(unitName, item) : null;
-        text += `• ${item.name}: ${qty} ${item.purchase_unit}`;
+        text += `• ${qty} ${item.purchase_unit}`;
         if (price > 0) {
           if (item.price_unit && item.price_unit.toLowerCase() !== (item.purchase_unit || '').toLowerCase()) {
             text += ` × ${fmt(price)}/${item.price_unit} = ${fmt(total)}`;
@@ -233,6 +233,7 @@ function OrdersView({ quotationId, token, onBack }) {
             text += ` × ${fmt(price)} = ${fmt(total)}`;
           }
         }
+        text += ` — ${item.name}`;
         if (altBrandNote) text += ` ⚠ marca alternativa: ${altBrandNote}`;
         text += '\n';
       }
@@ -251,6 +252,7 @@ function OrdersView({ quotationId, token, onBack }) {
     const currentName = effSupplierName(unitName, item);
     const isOverridden = !!supplierOverrides[k];
     const isOpen = openPicker === k;
+    const bestPrice = options[0]?.unit_price || 0;
     return (
       <div className="mt-1">
         <button
@@ -265,12 +267,14 @@ function OrdersView({ quotationId, token, onBack }) {
         </button>
         {isOpen && (
           <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white z-10">
-            {options.map((opt) => {
+            {options.map((opt, idx) => {
               const isDefault = !isOverridden && opt.supplier_name === item.supplier_name;
               const isSelected = isOverridden
                 ? supplierOverrides[k]?.supplier_name === opt.supplier_name
                 : isDefault;
               const restrictedForUnit = opt.is_restricted && !opt.delivery_cities.includes(unitName);
+              const diff = bestPrice > 0 && idx > 0 ? opt.unit_price - bestPrice : 0;
+              const rank = idx === 0 ? '1º' : idx === 1 ? '2º' : idx === 2 ? '3º' : `${idx + 1}º`;
               return (
                 <button
                   key={opt.supplier_id}
@@ -286,17 +290,39 @@ function OrdersView({ quotationId, token, onBack }) {
                 >
                   <span className="flex items-center gap-1.5">
                     {isSelected && <span className="text-blue-600 font-bold">✓</span>}
+                    <span className={`text-[10px] font-bold px-1 rounded ${idx === 0 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>{rank}</span>
                     <span className={isSelected ? 'font-semibold text-blue-700' : 'text-gray-800'}>{opt.supplier_name}</span>
                     {restrictedForUnit && (
                       <span className="bg-orange-100 text-orange-700 px-1.5 rounded-full text-[10px] font-medium">retirada</span>
                     )}
                   </span>
-                  <span className="text-gray-700 font-medium ml-3">{fmt(opt.unit_price)}</span>
+                  <span className="flex items-center gap-2 ml-3">
+                    <span className="text-gray-700 font-medium">{fmt(opt.unit_price)}</span>
+                    {diff > 0 && <span className="text-amber-600 text-[10px]">+{fmt(diff)}</span>}
+                  </span>
                 </button>
               );
             })}
           </div>
         )}
+      </div>
+    );
+  }
+
+  function renderSecondPriceBadge(unitName, item) {
+    const k = ovrKey(unitName, item.product_id);
+    if (!supplierOverrides[k]) return null;
+    const bestPrice = item.unit_price || 0;
+    const currentPrice = effUnitPrice(unitName, item);
+    if (!bestPrice || currentPrice <= bestPrice) return null;
+    const diff = currentPrice - bestPrice;
+    const pct = ((diff / bestPrice) * 100).toFixed(1);
+    const options = supplierOptions[item.product_id] || [];
+    const rank = options.findIndex((o) => o.supplier_name === supplierOverrides[k]?.supplier_name);
+    const rankLabel = rank === 1 ? '2º preço' : rank === 2 ? '3º preço' : `${rank + 1}º preço`;
+    return (
+      <div className="mt-1 inline-flex items-center gap-1.5 text-[11px] bg-amber-50 border border-amber-300 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+        ⚠ {rankLabel} — +{fmt(diff)} (+{pct}%) vs melhor preço
       </div>
     );
   }
@@ -400,6 +426,7 @@ function OrdersView({ quotationId, token, onBack }) {
                                   )}
                                 </div>
                                 {renderSupplierPicker(unitName, item)}
+                                {renderSecondPriceBadge(unitName, item)}
                                 {renderAltBrandBadge(unitName, item)}
                               </div>
                             ))}
@@ -439,6 +466,7 @@ function OrdersView({ quotationId, token, onBack }) {
                           )}
                         </div>
                         {renderSupplierPicker(unitName, item)}
+                        {renderSecondPriceBadge(unitName, item)}
                         {renderAltBrandBadge(unitName, item)}
                       </div>
                     ))
