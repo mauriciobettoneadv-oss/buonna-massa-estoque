@@ -150,6 +150,7 @@ function OrdersView({ quotationId, token, onBack }) {
   const [supplierOverrides, setSupplierOverrides] = useState({});
   const [openPicker, setOpenPicker] = useState(null);
   const [useAltBrand, setUseAltBrand] = useState({});
+  const [consolidatedIn, setConsolidatedIn] = useState({});
 
   useEffect(() => {
     request(`/quotations/${quotationId}/orders`, { token }).then(setData);
@@ -193,6 +194,27 @@ function OrdersView({ quotationId, token, onBack }) {
     });
   }
 
+  function handleConsolidate(targetUnitName, item) {
+    const totalQty = orders.reduce((sum, o) => sum + effQty(o.unit_name, item), 0);
+    for (const o of orders) {
+      const k = ovrKey(o.unit_name, item.product_id);
+      if (o.unit_name === targetUnitName) {
+        setQtyOverrides((prev) => ({ ...prev, [k]: totalQty }));
+      } else {
+        setQtyOverrides((prev) => ({ ...prev, [k]: 0 }));
+      }
+    }
+    setConsolidatedIn((prev) => ({ ...prev, [item.product_id]: targetUnitName }));
+  }
+
+  function handleDeconsolidate(item) {
+    for (const o of orders) {
+      const k = ovrKey(o.unit_name, item.product_id);
+      setQtyOverrides((prev) => { const n = { ...prev }; delete n[k]; return n; });
+    }
+    setConsolidatedIn((prev) => { const n = { ...prev }; delete n[item.product_id]; return n; });
+  }
+
   function effAltBrand(unitName, item) {
     const k = ovrKey(unitName, item.product_id);
     if (supplierOverrides[k] !== undefined) return supplierOverrides[k].alt_brand || null;
@@ -221,6 +243,7 @@ function OrdersView({ quotationId, token, onBack }) {
       if (orders.length > 1) text += `\n📍 ${unitName}\n`;
       for (const item of items) {
         const qty = effQty(unitName, item);
+        if (!qty || qty === 0) continue;
         const price = effUnitPrice(unitName, item);
         const total = qty * price * (item.multiplier || 1);
         grandTotal += total;
@@ -433,6 +456,23 @@ function OrdersView({ quotationId, token, onBack }) {
                                 {renderSupplierPicker(unitName, item)}
                                 {renderSecondPriceBadge(unitName, item)}
                                 {renderAltBrandBadge(unitName, item)}
+                                {/* Consolidation controls */}
+                                {consolidatedIn[item.product_id] === unitName ? (
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1 text-[11px] bg-blue-50 border border-blue-300 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                                      🔄 Compra consolidada
+                                    </span>
+                                    <button onClick={() => handleDeconsolidate(item)} className="text-[11px] text-gray-400 hover:text-gray-600 underline">desfazer</button>
+                                  </div>
+                                ) : !consolidatedIn[item.product_id] && orders.length > 1 ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleConsolidate(unitName, item); }}
+                                    className="mt-1 text-[11px] text-blue-500 hover:text-blue-700 hover:underline"
+                                    title="Somar as quantidades de todas as unidades aqui e zerar nas demais"
+                                  >
+                                    🔄 Comprar tudo aqui
+                                  </button>
+                                ) : null}
                               </div>
                             ))}
                           </div>
