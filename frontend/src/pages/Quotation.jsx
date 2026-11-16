@@ -552,6 +552,123 @@ function OrdersView({ quotationId, token, onBack }) {
   );
 }
 
+// ─── Comparison Tab ───────────────────────────────────────────────────────────
+
+function ComparisonTab({ data }) {
+  const suppliers = data.suppliers;
+  const products = data.products;
+  const prices = data.prices;
+
+  // Build price lookup: supplier_id → product_id → unit_price
+  const priceMap = {};
+  for (const px of prices) {
+    if (!priceMap[px.supplier_id]) priceMap[px.supplier_id] = {};
+    priceMap[px.supplier_id][px.product_id] = Number(px.unit_price) || 0;
+  }
+
+  // Color: ratio 0 = blue (hsl 220), ratio 1 = red (hsl 0)
+  function cellColor(ratio) {
+    if (ratio === null) return { bg: '', text: '' };
+    const hue = Math.round(220 - ratio * 220);
+    const sat = 60 + ratio * 15;
+    const light = 85 - ratio * 15;
+    const textLight = ratio > 0.6 ? 20 : 15;
+    return {
+      bg: `hsl(${hue},${sat}%,${light}%)`,
+      text: `hsl(${hue},60%,${textLight}%)`,
+    };
+  }
+
+  const unitNames = data.counts.map((c) => c.unit_name);
+
+  return (
+    <div className="bg-white rounded-b-lg shadow overflow-x-auto">
+      <div className="px-4 py-2 border-b text-sm text-gray-500">
+        Comparativo de preços entre fornecedores — azul = melhor preço, vermelho = pior.
+      </div>
+      <table className="text-xs w-full border-collapse">
+        <thead>
+          <tr className="bg-gray-50">
+            <th className="text-left px-3 py-2 border-b border-r font-medium text-gray-600 sticky left-0 bg-gray-50 z-10 min-w-[140px]">
+              Produto
+            </th>
+            {unitNames.map((u) => (
+              <th key={u} className="px-2 py-2 border-b border-r font-medium text-gray-500 whitespace-nowrap">
+                Qtd {u}
+              </th>
+            ))}
+            {suppliers.map((s) => (
+              <th key={s.id} className="px-2 py-2 border-b border-r font-medium text-gray-600 whitespace-nowrap text-center">
+                {s.name}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {products.map((p) => {
+            // Gather all prices for this product
+            const rowPrices = suppliers.map((s) => {
+              const raw = priceMap[s.id]?.[p.product_id] || 0;
+              return raw > 0 ? raw * priceMultiplier(p) : null;
+            });
+            const valid = rowPrices.filter((v) => v !== null);
+            const minP = valid.length ? Math.min(...valid) : 0;
+            const maxP = valid.length ? Math.max(...valid) : 0;
+            const range = maxP - minP;
+
+            return (
+              <tr key={p.product_id} className="border-b hover:bg-gray-50/50">
+                <td className="px-3 py-1.5 border-r sticky left-0 bg-white z-10 font-medium text-gray-700">
+                  {p.name}
+                  {p.purchase_unit && (
+                    <span className="ml-1 text-gray-400 font-normal">/{p.purchase_unit}</span>
+                  )}
+                </td>
+                {unitNames.map((uName) => {
+                  const unit = data.counts.find((c) => c.unit_name === uName);
+                  const qty = unit ? (p.qtys[unit.unit_id] || 0) : 0;
+                  return (
+                    <td key={uName} className="px-2 py-1.5 border-r text-center text-gray-500">
+                      {qty > 0 ? qty : <span className="text-gray-300">—</span>}
+                    </td>
+                  );
+                })}
+                {suppliers.map((s, idx) => {
+                  const displayPrice = rowPrices[idx];
+                  const ratio = displayPrice !== null && range > 0
+                    ? (displayPrice - minP) / range
+                    : displayPrice !== null && range === 0
+                      ? 0
+                      : null;
+                  const { bg, text } = cellColor(ratio);
+                  const rawPrice = priceMap[s.id]?.[p.product_id] || 0;
+                  const altBrand = prices.find(
+                    (px) => px.supplier_id === s.id && px.product_id === p.product_id
+                  )?.alt_brand;
+
+                  return (
+                    <td key={s.id} className="px-2 py-1.5 border-r text-center font-medium"
+                      style={bg ? { backgroundColor: bg, color: text } : {}}>
+                      {displayPrice !== null ? (
+                        <span title={altBrand ? `⚠ Outra marca: ${altBrand}` : undefined}>
+                          {fmt(displayPrice)}
+                          {altBrand && <span className="ml-0.5 opacity-70">⚠</span>}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Supplier Tab Content ─────────────────────────────────────────────────────
 
 function SupplierTab({ supplier, quotationId, products, data, localPrices, onPriceChange, onSave, onDelete, onExtracted, token, onTokenGenerated, readOnly }) {
@@ -1257,10 +1374,14 @@ export default function Quotation() {
                 className={`px-4 py-2 rounded-t-lg text-sm font-medium border-b-2 ${activeTab === 'best' ? 'bg-white border-green-600 text-green-700' : 'bg-gray-100 border-transparent text-gray-600 hover:bg-gray-200'}`}>
                 ⭐ Melhor Preço
               </button>
+              <button onClick={() => setActiveTab('comparison')}
+                className={`px-4 py-2 rounded-t-lg text-sm font-medium border-b-2 ${activeTab === 'comparison' ? 'bg-white border-blue-600 text-blue-700' : 'bg-gray-100 border-transparent text-gray-600 hover:bg-gray-200'}`}>
+                📊 Comparativo
+              </button>
             </div>
           )}
 
-          {activeTab && activeTab !== 'best' && (() => {
+          {activeTab && activeTab !== 'best' && activeTab !== 'comparison' && (() => {
             const supplier = data.suppliers.find((s) => s.id === activeTab);
             if (!supplier) return null;
             return (
@@ -1283,6 +1404,8 @@ export default function Quotation() {
           })()}
 
           {activeTab === 'best' && <BestPriceTab data={data} />}
+
+          {activeTab === 'comparison' && <ComparisonTab data={data} />}
 
           {data.suppliers.length === 0 && (
             <div className="bg-white rounded-lg shadow p-6 text-center text-gray-400 text-sm">
