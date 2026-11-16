@@ -11,6 +11,18 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+// Converte preço/price_unit → preço/purchase_unit (igual ao backend)
+function calcMultiplier(p) {
+  const pu = (p.price_unit || '').toLowerCase().trim();
+  const buyUnit = (p.purchase_unit || '').toLowerCase().trim();
+  if (!pu || pu === buyUnit) return 1;
+  const BOX_UNITS = ['caixa', 'fardo'];
+  const isBox = BOX_UNITS.includes(buyUnit);
+  const boxQty = isBox ? (Number(p.box_qty) || 1) : 1;
+  const boxWeight = Number(p.box_unit_weight) || 1;
+  return pu === 'kilo' ? boxQty * boxWeight : (isBox ? boxQty : 1);
+}
+
 export default function ConferenciaPedido() {
   const { token } = useAuth();
 
@@ -19,6 +31,9 @@ export default function ConferenciaPedido() {
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [quotationData, setQuotationData] = useState(null);
   const [loadingQuotation, setLoadingQuotation] = useState(false);
+
+  // Unit filter for conferência (one espelho per unit)
+  const [selectedUnitId, setSelectedUnitId] = useState(null);
 
   // Step 2: items for conferencia
   const [itens, setItens] = useState([]);
@@ -58,14 +73,25 @@ export default function ConferenciaPedido() {
     setQuotationData(null);
     setItens([]);
     setSavedId(null);
+    setSelectedUnitId(null);
     setLoadingQuotation(true);
     try {
       const data = await request(`/quotations/${q.id}`, { token });
       setQuotationData(data);
+      // Don't build itens yet — wait for unit selection
+    } catch (e) {
+      alert('Erro ao carregar cotação: ' + e.message);
+    } finally {
+      setLoadingQuotation(false);
+    }
+  }
 
-      // Build items list with best prices
-      const builtItens = data.products.map((p) => {
-        // find best price
+  function buildItensForUnit(data, unitId) {
+    const unit = data.counts.find((c) => String(c.unit_id) === String(unitId));
+    return data.products
+      .filter((p) => p.qtys[unitId] > 0 || Object.values(p.qtys).some((v) => v > 0))
+      .map((p) => {
+        // best price for this product (smallest unit_price in quotation_prices)
         let bestPrice = 0;
         let bestSupplier = '';
         for (const s of data.suppliers) {
@@ -76,25 +102,40 @@ export default function ConferenciaPedido() {
             bestSupplier = s.name;
           }
         }
-        const totalQty = Object.values(p.qtys).reduce((s, v) => s + v, 0);
+        // Convert agreed price to purchase_unit (vendor invoices per purchase_unit, e.g. Fardo)
+        const mult = calcMultiplier(p);
+        const precoPorCompra = bestPrice * mult;
+
+        // Quantity: for THIS unit only
+        const qtyThisUnit = Number(p.qtys[unitId] || 0);
+
         return {
           product_id: p.product_id,
           name: p.name,
           purchase_unit: p.purchase_unit,
-          qty_pedida: totalQty,
-          preco_acordado: bestPrice,
+          price_unit: p.price_unit,
+          box_qty: p.box_qty,
+          box_unit_weight: p.box_unit_weight,
+          multiplier: mult,
+          qty_pedida: qtyThisUnit,
+          preco_acordado: precoPorCompra,         // per purchase_unit
+          preco_acordado_base: bestPrice,          // per price_unit (for display)
           supplier_name: bestSupplier,
-          qty_recebida: totalQty,
-          valor_cobrado: bestPrice,
+          qty_recebida: qtyThisUnit,
+          valor_cobrado: precoPorCompra,
           conferido: false,
           aceito: false,
         };
-      });
-      setItens(builtItens);
-    } catch (e) {
-      alert('Erro ao carregar cotação: ' + e.message);
-    } finally {
-      setLoadingQuotation(false);
+      })
+      .filter((item) => item.qty_pedida > 0);
+  }
+
+  function handleSelectUnit(unitId) {
+    setSelectedUnitId(unitId);
+    if (quotationData) {
+      setItens(buildItensForUnit(quotationData, unitId));
+      setExtractInfo(null);
+      setSavedId(null);
     }
   }
 
@@ -104,10 +145,14 @@ export default function ConferenciaPedido() {
 
   function isDivergente(item) {
     if (item.aceito) return false;
-    return (
-      Number(item.qty_recebida) !== Number(item.qty_pedida) ||
-      Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001
-    );
+    const qtyDiff = Math.abs(Number(item.qty_recebida) - Number(item.qty_pedida)) > 0.001;
+    // Allow 1% tolerance on price — rounding differences between price_unit vs purchase_unit
+    const acordado = Number(item.preco_acordado);
+    const cobrado = Number(item.valor_cobrado);
+    const priceDiff = acordado > 0
+      ? Math.abs(cobrado - acordado) / acordado > 0.01
+      : cobrado > 0;
+    return qtyDiff || priceDiff;
   }
 
   async function handleExtractFromImage(e) {
@@ -205,15 +250,46 @@ export default function ConferenciaPedido() {
         )}
       </div>
 
-      {/* Items */}
+      {/* Unit selector */}
       {loadingQuotation && <p className="text-gray-500 text-sm">Carregando produtos...</p>}
 
-      {quotationData && itens.length > 0 && !loadingQuotation && (
+      {quotationData && !loadingQuotation && (
+        <div className="bg-white rounded-lg shadow p-4 mb-4">
+          <p className="text-sm font-semibold text-gray-700 mb-2">
+            Selecione a loja do espelho que você vai conferir:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {quotationData.counts.map((c) => (
+              <button
+                key={c.unit_id}
+                onClick={() => handleSelectUnit(c.unit_id)}
+                className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                  selectedUnitId === c.unit_id
+                    ? 'bg-brand-red text-white border-brand-red'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-brand-red'
+                }`}
+              >
+                {c.unit_name}
+              </button>
+            ))}
+          </div>
+          {!selectedUnitId && (
+            <p className="text-xs text-gray-400 mt-2">Cada fornecedor envia um espelho por loja — selecione a loja antes de importar.</p>
+          )}
+        </div>
+      )}
+
+      {quotationData && itens.length > 0 && !loadingQuotation && selectedUnitId && (
         <div>
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h2 className="font-semibold text-gray-800">
               Cotação #{selectedQuotation.id} — {itens.length} produtos
               {selectedQuotation.created_at && <span className="ml-2 text-sm font-normal text-gray-400">{fmtDate(selectedQuotation.created_at)}</span>}
+              {selectedUnitId && quotationData && (
+                <span className="ml-2 text-sm font-normal text-blue-600">
+                  · {quotationData.counts.find((c) => c.unit_id === selectedUnitId)?.unit_name}
+                </span>
+              )}
             </h2>
             <div className="flex items-center gap-2 flex-wrap">
               {divergentes.length > 0 && (
@@ -288,7 +364,15 @@ export default function ConferenciaPedido() {
                             />
                             <span className="text-gray-600 font-medium">{item.purchase_unit}</span>
                           </div>
-                          <span>Preço acordado: <strong>{fmt(item.preco_acordado)}</strong></span>
+                          <div>
+                            <span className="text-gray-500">Preço acordado:</span>{' '}
+                            <strong>{fmt(item.preco_acordado)}/{item.purchase_unit}</strong>
+                            {item.multiplier > 1 && item.price_unit && (
+                              <span className="ml-1 text-xs text-gray-400">
+                                ({fmt(item.preco_acordado_base)}/{item.price_unit})
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex flex-wrap gap-4 items-end">
@@ -301,14 +385,14 @@ export default function ConferenciaPedido() {
                               value={item.qty_recebida}
                               onChange={(e) => updateItem(item._idx, 'qty_recebida', e.target.value)}
                               className={`border rounded px-3 py-1.5 text-sm w-32 text-center ${
-                                item.conferido && !item.aceito && Number(item.qty_recebida) !== Number(item.qty_pedida)
+                                item.conferido && !item.aceito && Math.abs(Number(item.qty_recebida) - Number(item.qty_pedida)) > 0.001
                                   ? 'border-red-400 bg-red-50'
                                   : 'border-gray-300'
                               }`}
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-gray-500 block mb-1">Valor cobrado (R$/un)</label>
+                            <label className="text-xs text-gray-500 block mb-1">Valor cobrado (R$/{item.purchase_unit})</label>
                             <input
                               type="number"
                               min="0"
@@ -325,11 +409,15 @@ export default function ConferenciaPedido() {
                           {item.conferido && div && !item.aceito && (
                             <div className="flex flex-col gap-1">
                               <div className="text-xs text-red-600">
-                                {Number(item.qty_recebida) !== Number(item.qty_pedida) && (
-                                  <div>Pedimos {item.qty_pedida}, vendedor lançou {item.qty_recebida}</div>
+                                {Math.abs(Number(item.qty_recebida) - Number(item.qty_pedida)) > 0.001 && (
+                                  <div>Pedimos {item.qty_pedida}, vendedor lançou {item.qty_recebida} {item.purchase_unit}</div>
                                 )}
-                                {Math.abs(Number(item.valor_cobrado) - Number(item.preco_acordado)) > 0.001 && (
-                                  <div>Acordado {fmt(item.preco_acordado)}, cobrado {fmt(item.valor_cobrado)}</div>
+                                {(() => {
+                                  const ac = Number(item.preco_acordado);
+                                  const co = Number(item.valor_cobrado);
+                                  return ac > 0 && Math.abs(co - ac) / ac > 0.01;
+                                })() && (
+                                  <div>Acordado {fmt(item.preco_acordado)}/{item.purchase_unit}, cobrado {fmt(item.valor_cobrado)}/{item.purchase_unit}</div>
                                 )}
                               </div>
                               <button
