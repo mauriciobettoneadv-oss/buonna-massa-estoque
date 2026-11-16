@@ -24,22 +24,35 @@ function bestForProduct(prices, suppliers, productId) {
 
 function NewQuotationModal({ onClose, onCreated, token }) {
   const [counts, setCounts] = useState([]);
-  const [selected, setSelected] = useState([]);
+  const [selectedGroups, setSelectedGroups] = useState({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     request('/stock-counts/finalized', { token }).then(setCounts).catch(() => {});
   }, [token]);
 
-  function toggle(id) {
-    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  // Group counts by finalization date (day)
+  const groups = {};
+  for (const c of counts) {
+    const date = new Date(c.finalized_at || c.created_at).toLocaleDateString('pt-BR');
+    if (!groups[date]) groups[date] = [];
+    groups[date].push(c);
+  }
+  const groupDates = Object.keys(groups);
+
+  function toggleGroup(date) {
+    setSelectedGroups((prev) => ({ ...prev, [date]: !prev[date] }));
   }
 
+  const selectedCountIds = groupDates
+    .filter((d) => selectedGroups[d])
+    .flatMap((d) => groups[d].map((c) => c.id));
+
   async function create() {
-    if (!selected.length) return;
+    if (!selectedCountIds.length) return;
     setLoading(true);
     try {
-      const q = await request('/quotations', { method: 'POST', token, body: { count_ids: selected } });
+      const q = await request('/quotations', { method: 'POST', token, body: { count_ids: selectedCountIds } });
       onCreated(q.id);
     } finally {
       setLoading(false);
@@ -49,23 +62,30 @@ function NewQuotationModal({ onClose, onCreated, token }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-        <h2 className="text-lg font-bold text-brand-red mb-4">Nova Cotação</h2>
-        <p className="text-sm text-gray-600 mb-3">Selecione as contagens finalizadas para cotar:</p>
+        <h2 className="text-lg font-bold text-brand-red mb-2">Nova Cotação</h2>
+        <p className="text-sm text-gray-600 mb-3">Selecione o período de contagem para cotar. Todas as lojas da mesma data são agrupadas numa única cotação.</p>
         <div className="divide-y border rounded-lg mb-4 max-h-64 overflow-y-auto">
-          {counts.length === 0 && <p className="p-3 text-sm text-gray-400">Nenhuma contagem finalizada.</p>}
-          {counts.map((c) => (
-            <label key={c.id} className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50">
-              <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="accent-brand-red" />
-              <span className="text-sm">
-                <strong>{c.unit_name}</strong> — finalizada em {new Date(c.finalized_at || c.created_at).toLocaleDateString('pt-BR')}
-                <span className="ml-2 text-gray-400">({c.items_to_buy} itens a comprar)</span>
-              </span>
-            </label>
-          ))}
+          {groupDates.length === 0 && <p className="p-3 text-sm text-gray-400">Nenhuma contagem finalizada disponível.</p>}
+          {groupDates.map((date) => {
+            const group = groups[date];
+            const units = group.map((c) => c.unit_name).join(' + ');
+            const totalItems = group.reduce((s, c) => s + Number(c.items_to_buy || 0), 0);
+            const isSelected = !!selectedGroups[date];
+            return (
+              <label key={date} className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-brand-red/5' : ''}`}>
+                <input type="checkbox" checked={isSelected} onChange={() => toggleGroup(date)} className="accent-brand-red" />
+                <span className="text-sm flex-1">
+                  <strong>{units}</strong>
+                  <span className="ml-2 text-gray-500">{date}</span>
+                  <span className="ml-2 text-gray-400 text-xs">({totalItems} itens a comprar)</span>
+                </span>
+              </label>
+            );
+          })}
         </div>
         <div className="flex gap-2 justify-end">
           <button onClick={onClose} className="border border-gray-300 rounded px-4 py-2 text-sm">Cancelar</button>
-          <button onClick={create} disabled={!selected.length || loading} className="bg-brand-red text-white rounded px-4 py-2 text-sm disabled:opacity-50">
+          <button onClick={create} disabled={!selectedCountIds.length || loading} className="bg-brand-red text-white rounded px-4 py-2 text-sm disabled:opacity-50">
             {loading ? 'Criando...' : 'Criar Cotação'}
           </button>
         </div>

@@ -22,6 +22,11 @@ router.get('/finalized', asyncHandler(async (req, res) => {
      JOIN units u ON u.id = sc.unit_id
      LEFT JOIN stock_count_items sci ON sci.stock_count_id = sc.id
      WHERE sc.status = 'finalizada'
+       AND sc.id NOT IN (
+         SELECT qc.stock_count_id FROM quotation_counts qc
+         JOIN quotations q ON q.id = qc.quotation_id
+         WHERE q.status != 'fechada'
+       )
      GROUP BY sc.id, u.name
      ORDER BY sc.id DESC`
   );
