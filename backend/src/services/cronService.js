@@ -32,6 +32,13 @@ function startCronJobs() {
     }
   }, { timezone: 'America/Sao_Paulo' });
 
+  // Alerta 22h30 — entregas esperadas hoje não conferidas
+  cron.schedule('30 22 * * *', async () => {
+    try { await checkPendingDeliveries(); } catch (err) {
+      console.error('[cron] erro no alerta de entregas pendentes:', err.message);
+    }
+  }, { timezone: 'America/Sao_Paulo' });
+
   console.log('[cron] Jobs iniciados (fuso: America/Sao_Paulo)');
 }
 
@@ -195,4 +202,59 @@ async function checkAllFilled() {
   }
 }
 
-module.exports = { startCronJobs, runHealthCheck };
+async function checkPendingDeliveries() {
+  const { sendToRecipients } = require('./whatsappService');
+
+  // Mapa JS getDay() → prefixos em português (minúsculo)
+  const DAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  const todayPrefix = DAYS[new Date().getDay()]; // ex: 'quinta'
+
+  // Fornecedores que entregam hoje em cotações fechadas nos últimos 14 dias
+  // e que ainda não tiveram conferência de entrega concluída hoje
+  const result = await pool.query(`
+    SELECT DISTINCT qs.name AS supplier_name, q.id AS quotation_id
+    FROM quotation_suppliers qs
+    JOIN quotations q ON q.id = qs.quotation_id
+    LEFT JOIN suppliers s ON s.id = qs.supplier_id
+    WHERE q.status = 'fechada'
+      AND q.created_at > NOW() - INTERVAL '14 days'
+      AND EXISTS (
+        SELECT 1 FROM unnest(COALESCE(s.delivery_days, '{}')) d
+        WHERE lower(d) LIKE $1 || '%'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM conferencia_entrega ce
+        LEFT JOIN conferencia_pedido cp ON cp.id = ce.conferencia_pedido_id
+        WHERE (
+          (cp.quotation_id IS NOT NULL AND cp.quotation_id = q.id)
+          OR (ce.quotation_id = q.id)
+        )
+        AND ce.finalizado_em AT TIME ZONE 'America/Sao_Paulo' >= CURRENT_DATE
+        AND ce.status IN ('ok', 'divergente')
+      )
+    ORDER BY qs.name
+  `, [todayPrefix]);
+
+  if (result.rows.length === 0) {
+    console.log('[cron] Alerta 22h30: todas as entregas já foram conferidas. 👍');
+    return;
+  }
+
+  const lista = result.rows.map(r => `• ${r.supplier_name}`).join('\n');
+  const msg = `⚠️ *Alerta 22h30 — Entregas não conferidas hoje:*\n${lista}\n\nVerifique com as lojas ou entre em contato com os fornecedores.`;
+
+  const donos = await pool.query(
+    `SELECT name, whatsapp FROM users
+     WHERE role IN ('dono','proprietario','gerente')
+       AND active = TRUE AND whatsapp IS NOT NULL AND whatsapp <> ''`
+  );
+
+  if (donos.rows.length > 0) {
+    await sendToRecipients(donos.rows, 'alerta_entrega_pendente', msg);
+    console.log(`[cron] Alerta 22h30 enviado: ${result.rows.length} fornecedor(es) pendente(s).`);
+  } else {
+    console.log('[cron] Alerta 22h30: sem números de WhatsApp cadastrados para notificar.');
+  }
+}
+
+module.exports = { startCronJobs, runHealthCheck, checkPendingDeliveries };

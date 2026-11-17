@@ -21,16 +21,29 @@ const STATUS_LABEL = {
   divergente: 'Com Divergências',
 };
 
+function fmt(n) {
+  return Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
 export default function ConferenciaEntrega() {
   const { token } = useAuth();
   const [entregas, setEntregas] = useState([]);
   const [conferencias, setConferencias] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [showDirectModal, setShowDirectModal] = useState(false);
   const [selectedEntrega, setSelectedEntrega] = useState(null);
   const [itens, setItens] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
+
+  // Direct-from-quotation state
+  const [closedQuotations, setClosedQuotations] = useState([]);
+  const [directQuotation, setDirectQuotation] = useState(null);
+  const [directQuotationData, setDirectQuotationData] = useState(null);
+  const [directSupplier, setDirectSupplier] = useState(null);
+  const [directUnit, setDirectUnit] = useState(null);
+  const [loadingDirectQuotation, setLoadingDirectQuotation] = useState(false);
 
   async function fetchEntregas() {
     try {
@@ -47,6 +60,55 @@ export default function ConferenciaEntrega() {
       setConferencias(data.filter(c => c.status === 'confirmada'));
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  async function fetchClosedQuotations() {
+    try {
+      const data = await request('/quotations', { token });
+      setClosedQuotations((data || []).filter(q => q.status === 'fechada'));
+    } catch (e) { console.error(e); }
+  }
+
+  async function handleSelectDirectQuotation(q) {
+    setDirectQuotation(q);
+    setDirectSupplier(null);
+    setDirectUnit(null);
+    setLoadingDirectQuotation(true);
+    try {
+      const data = await request(`/quotations/${q.id}`, { token });
+      setDirectQuotationData(data);
+    } catch (e) {
+      alert('Erro ao carregar cotação: ' + e.message);
+    } finally {
+      setLoadingDirectQuotation(false);
+    }
+  }
+
+  async function handleCreateDirectEntrega() {
+    if (!directQuotation || !directSupplier) return;
+    setLoading(true);
+    try {
+      const nova = await request('/conferencia-entrega/from-quotation', {
+        method: 'POST',
+        token,
+        body: {
+          quotation_id: directQuotation.id,
+          supplier_id: directSupplier.id,
+          unit_id: directUnit?.unit_id || null,
+        },
+      });
+      setShowDirectModal(false);
+      setDirectQuotation(null);
+      setDirectQuotationData(null);
+      setDirectSupplier(null);
+      setDirectUnit(null);
+      await openEntrega(nova.id);
+      await fetchEntregas();
+    } catch (e) {
+      alert('Erro ao criar conferência: ' + e.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -114,12 +176,20 @@ export default function ConferenciaEntrega() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-brand-red">Conferência de Entrega</h1>
         {!selectedEntrega && (
-          <button
-            onClick={() => { fetchConferencias(); setShowModal(true); }}
-            className="bg-brand-red text-white px-4 py-2 rounded hover:opacity-90 text-sm font-medium"
-          >
-            + Nova Conferência de Entrega
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => { fetchConferencias(); setShowModal(true); }}
+              className="bg-brand-red text-white px-4 py-2 rounded hover:opacity-90 text-sm font-medium"
+            >
+              + Com espelho
+            </button>
+            <button
+              onClick={() => { fetchClosedQuotations(); setShowDirectModal(true); }}
+              className="bg-gray-700 text-white px-4 py-2 rounded hover:opacity-90 text-sm font-medium"
+            >
+              + Sem espelho
+            </button>
+          </div>
         )}
         {selectedEntrega && (
           <button
@@ -145,6 +215,7 @@ export default function ConferenciaEntrega() {
             >
               <div>
                 <span className="font-medium text-gray-800">Entrega #{e.id}</span>
+                {e.supplier_name && <span className="text-sm font-medium text-gray-700 ml-2">— {e.supplier_name}</span>}
                 {e.conferente_name && <span className="text-sm text-gray-500 ml-2">por {e.conferente_name}</span>}
                 {e.finalizado_em && (
                   <span className="text-xs text-gray-400 ml-2">
@@ -278,6 +349,75 @@ export default function ConferenciaEntrega() {
             <div className="mt-4 flex justify-end">
               <button onClick={() => setShowModal(false)} className="text-sm text-gray-500 hover:underline">
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal direto sem espelho */}
+      {showDirectModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-gray-800 mb-1">Conferência sem espelho</h2>
+            <p className="text-xs text-gray-500 mb-4">Para fornecedores que não enviam espelho (Bressan, BRF, Ambev, Coca-Cola…). A conferência é feita diretamente no momento do recebimento.</p>
+
+            {/* Step 1: selecionar cotação */}
+            <p className="text-sm font-semibold text-gray-700 mb-2">1. Cotação</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {closedQuotations.length === 0 && <p className="text-sm text-gray-400">Nenhuma cotação fechada.</p>}
+              {closedQuotations.map(q => (
+                <button key={q.id} onClick={() => handleSelectDirectQuotation(q)}
+                  className={`px-3 py-1.5 rounded-lg text-sm border ${directQuotation?.id === q.id ? 'bg-brand-red text-white border-brand-red' : 'border-gray-300 text-gray-700 hover:border-brand-red'}`}>
+                  Cotação #{q.id}
+                  {q.units?.length > 0 && <span className="ml-1 opacity-70 text-xs">({q.units.join('+')})</span>}
+                </button>
+              ))}
+            </div>
+
+            {loadingDirectQuotation && <p className="text-sm text-gray-400 mb-4">Carregando...</p>}
+
+            {/* Step 2: selecionar unidade */}
+            {directQuotationData && (
+              <>
+                <p className="text-sm font-semibold text-gray-700 mb-2">2. Loja (opcional)</p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button onClick={() => setDirectUnit(null)}
+                    className={`px-3 py-1.5 rounded-lg text-sm border ${!directUnit ? 'bg-brand-red text-white border-brand-red' : 'border-gray-300 text-gray-700 hover:border-brand-red'}`}>
+                    Todas as lojas
+                  </button>
+                  {directQuotationData.counts.map(c => (
+                    <button key={c.unit_id} onClick={() => setDirectUnit(c)}
+                      className={`px-3 py-1.5 rounded-lg text-sm border ${directUnit?.unit_id === c.unit_id ? 'bg-brand-red text-white border-brand-red' : 'border-gray-300 text-gray-700 hover:border-brand-red'}`}>
+                      {c.unit_name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Step 3: selecionar fornecedor */}
+                <p className="text-sm font-semibold text-gray-700 mb-2">3. Fornecedor</p>
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {directQuotationData.suppliers.map(s => (
+                    <button key={s.id} onClick={() => setDirectSupplier(s)}
+                      className={`px-3 py-1.5 rounded-lg text-sm border ${directSupplier?.id === s.id ? 'bg-gray-800 text-white border-gray-800' : 'border-gray-300 text-gray-700 hover:border-gray-500'}`}>
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-between items-center">
+              <button onClick={() => { setShowDirectModal(false); setDirectQuotation(null); setDirectQuotationData(null); setDirectSupplier(null); setDirectUnit(null); }}
+                className="text-sm text-gray-500 hover:underline">
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateDirectEntrega}
+                disabled={!directQuotation || !directSupplier || loading}
+                className="bg-gray-800 text-white px-5 py-2 rounded hover:opacity-90 text-sm font-medium disabled:opacity-40"
+              >
+                {loading ? 'Criando...' : 'Iniciar Conferência'}
               </button>
             </div>
           </div>

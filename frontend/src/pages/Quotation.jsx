@@ -694,21 +694,27 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  async function buildQuotationMessage(accessToken) {
+    const link = `${window.location.origin}/cotacao/${accessToken}`;
+    const hour = new Date().getHours();
+    const greeting = hour >= 6 && hour < 12 ? 'Bom dia' : hour >= 12 && hour < 18 ? 'Boa tarde' : 'Boa noite';
+    const contactName = supplier.contact_name || supplier.name;
+    const firstName = contactName.split(' ')[0];
+    return { message: `${greeting}, ${firstName}! Tudo bem?\nCota para mim, por favor:\n${link}`, link };
+  }
+
+  async function ensureToken() {
+    if (supplier.access_token) return supplier.access_token;
+    const result = await request(`/quotations/${quotationId}/suppliers/${supplier.id}/token`, { method: 'POST', token });
+    onTokenGenerated(supplier.id, result);
+    return result.access_token;
+  }
+
   async function handleCopyLink() {
     setGeneratingLink(true);
     try {
-      let accessToken = supplier.access_token;
-      if (!accessToken) {
-        const result = await request(`/quotations/${quotationId}/suppliers/${supplier.id}/token`, { method: 'POST', token });
-        accessToken = result.access_token;
-        onTokenGenerated(supplier.id, result);
-      }
-      const link = `${window.location.origin}/cotacao/${accessToken}`;
-      const hour = new Date().getHours();
-      const greeting = hour >= 6 && hour < 12 ? 'Bom dia' : hour >= 12 && hour < 18 ? 'Boa tarde' : 'Boa noite';
-      const contactName = supplier.contact_name || supplier.name;
-      const firstName = contactName.split(' ')[0];
-      const message = `${greeting}, ${firstName}! Tudo bem?\nCota para mim, por favor:\n${link}`;
+      const accessToken = await ensureToken();
+      const { message } = await buildQuotationMessage(accessToken);
       await navigator.clipboard.writeText(message).catch(() => {});
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 3000);
@@ -836,6 +842,28 @@ function SupplierTab({ supplier, quotationId, products, data, localPrices, onPri
             className="flex items-center gap-1 bg-green-600 text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
           >
             {generatingLink ? '⟳ Gerando...' : linkCopied ? '✓ Copiado!' : '🔗 Copiar link'}
+          </button>
+          <button
+            onClick={async () => {
+              setGeneratingLink(true);
+              try {
+                const accessToken = await ensureToken();
+                const { message } = await buildQuotationMessage(accessToken);
+                const phone = (supplier.contact_phone || supplier.supplier_phone || '').replace(/\D/g, '');
+                const waUrl = phone
+                  ? `https://wa.me/55${phone}?text=${encodeURIComponent(message)}`
+                  : `https://wa.me/?text=${encodeURIComponent(message)}`;
+                window.open(waUrl, '_blank');
+              } catch (e) {
+                alert('Erro ao gerar link: ' + (e.message || e));
+              } finally {
+                setGeneratingLink(false);
+              }
+            }}
+            disabled={generatingLink}
+            className="flex items-center gap-1 bg-[#25D366] text-white rounded px-3 py-1 text-sm hover:opacity-90 disabled:opacity-50"
+          >
+            📱 WhatsApp
           </button>
         </div>
       )}

@@ -78,4 +78,92 @@ async function finalizeEntrega(req, res) {
   res.json(result.rows[0]);
 }
 
-module.exports = { listEntregas, createEntrega, getEntrega, finalizeEntrega };
+// Cria conferência de entrega direto de uma cotação (sem espelho prévio)
+// Para fornecedores que não enviam espelho (Bressan, BRF, Ambev, Coca-Cola...)
+async function createEntregaFromQuotation(req, res) {
+  const { quotation_id, supplier_id, unit_id } = req.body;
+  if (!quotation_id || !supplier_id) {
+    return res.status(400).json({ error: 'quotation_id e supplier_id são obrigatórios.' });
+  }
+
+  // Busca dados da cotação
+  const q = await pool.query(`SELECT * FROM quotations WHERE id = $1`, [quotation_id]);
+  if (!q.rows.length) return res.status(404).json({ error: 'Cotação não encontrada.' });
+
+  // Fornecedor na cotação
+  const qs = await pool.query(`SELECT * FROM quotation_suppliers WHERE id = $1 AND quotation_id = $2`, [supplier_id, quotation_id]);
+  if (!qs.rows.length) return res.status(404).json({ error: 'Fornecedor não encontrado nesta cotação.' });
+  const supplier = qs.rows[0];
+
+  // Produtos com preços desse fornecedor na cotação
+  const prices = await pool.query(
+    `SELECT qp.product_id, qp.unit_price, p.name, p.purchase_unit, p.price_unit,
+            p.box_qty, p.box_unit_weight
+     FROM quotation_prices qp
+     JOIN products p ON p.id = qp.product_id
+     WHERE qp.supplier_id = $1 AND qp.unit_price > 0
+     ORDER BY p.name`,
+    [supplier_id]
+  );
+
+  // Se tiver unit_id, filtra pela quantidade pedida para aquela unidade
+  let qtyMap = {};
+  if (unit_id) {
+    const qtys = await pool.query(
+      `SELECT sci.product_id, sci.qty_to_buy
+       FROM quotation_counts qc
+       JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
+       JOIN stock_counts sc ON sc.id = qc.stock_count_id
+       WHERE qc.quotation_id = $1 AND sc.unit_id = $2 AND sci.qty_to_buy > 0`,
+      [quotation_id, unit_id]
+    );
+    for (const row of qtys.rows) qtyMap[row.product_id] = Number(row.qty_to_buy);
+  } else {
+    // Soma todas as unidades
+    const qtys = await pool.query(
+      `SELECT sci.product_id, SUM(sci.qty_to_buy) AS qty
+       FROM quotation_counts qc
+       JOIN stock_count_items sci ON sci.stock_count_id = qc.stock_count_id
+       WHERE qc.quotation_id = $1 AND sci.qty_to_buy > 0
+       GROUP BY sci.product_id`,
+      [quotation_id]
+    );
+    for (const row of qtys.rows) qtyMap[row.product_id] = Number(row.qty);
+  }
+
+  const itens = prices.rows
+    .filter(p => qtyMap[p.product_id] > 0)
+    .map(p => {
+      // Multiplier: price_unit → purchase_unit
+      const pu = (p.price_unit || '').toLowerCase().trim();
+      const bu = (p.purchase_unit || '').toLowerCase().trim();
+      let mult = 1;
+      if (pu && pu !== bu) {
+        const isBox = ['caixa', 'fardo'].includes(bu);
+        const bq = isBox ? (Number(p.box_qty) || 1) : 1;
+        const bw = Number(p.box_unit_weight) || 1;
+        mult = pu === 'kilo' ? bq * bw : (isBox ? bq : 1);
+      }
+      const precoPorCompra = Number(p.unit_price) * mult;
+      return {
+        product_id: p.product_id,
+        nome: p.name,
+        purchase_unit: p.purchase_unit,
+        qtd_pedida: qtyMap[p.product_id] || 0,
+        valor_pedido: precoPorCompra,
+        qtd_recebida: qtyMap[p.product_id] || 0,
+        valor_recebido: precoPorCompra,
+        status: 'ok',
+        observacao: '',
+      };
+    });
+
+  const result = await pool.query(
+    `INSERT INTO conferencia_entrega (quotation_id, supplier_name, unit_id, conferente_id, itens)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [quotation_id, supplier.name, unit_id || null, req.user.id, JSON.stringify(itens)]
+  );
+  res.status(201).json(result.rows[0]);
+}
+
+module.exports = { listEntregas, createEntrega, getEntrega, finalizeEntrega, createEntregaFromQuotation };

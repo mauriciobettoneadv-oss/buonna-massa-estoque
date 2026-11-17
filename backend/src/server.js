@@ -16,7 +16,7 @@ const { exportData } = require('./controllers/exportController');
 const { authenticate, requireRole } = require('./middleware/auth');
 const asyncHandler = require('./middleware/asyncHandler');
 
-const { startCronJobs, runHealthCheck } = require('./services/cronService');
+const { startCronJobs, runHealthCheck, checkPendingDeliveries } = require('./services/cronService');
 const { getQuotationByToken, saveQuotationByToken } = require('./controllers/supplierTokenController');
 
 const app = express();
@@ -51,6 +51,16 @@ app.post('/api/health/run', async (req, res) => {
     const pool = require('./db/pool');
     const r = await pool.query('SELECT * FROM health_checks ORDER BY checked_at DESC LIMIT 1');
     res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Disparar alerta de entregas pendentes manualmente
+app.post('/api/alertas/check-pendentes', authenticate, requireRole('gerente'), async (req, res) => {
+  try {
+    await checkPendingDeliveries();
+    res.json({ ok: true, message: 'Verificação executada.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -147,6 +157,9 @@ async function startServer() {
     await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_per_package NUMERIC`);
     await pool.query(`ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS canal_preferencial TEXT`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_unit_id INTEGER REFERENCES units(id)`);
+    await pool.query(`ALTER TABLE conferencia_entrega ADD COLUMN IF NOT EXISTS quotation_id INTEGER REFERENCES quotations(id)`);
+    await pool.query(`ALTER TABLE conferencia_entrega ADD COLUMN IF NOT EXISTS supplier_name TEXT`);
+    await pool.query(`ALTER TABLE conferencia_entrega ADD COLUMN IF NOT EXISTS unit_id INTEGER REFERENCES units(id)`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS stock_count_edits (
         id SERIAL PRIMARY KEY,

@@ -83,7 +83,11 @@ async function getQuotation(req, res) {
     `SELECT qs.*, s.delivery_cities,
             (SELECT suc.contact_name FROM supplier_unit_contacts suc
              WHERE suc.supplier_id = s.id AND suc.contact_name IS NOT NULL
-             LIMIT 1) AS contact_name
+             LIMIT 1) AS contact_name,
+            (SELECT suc.phone FROM supplier_unit_contacts suc
+             WHERE suc.supplier_id = s.id AND suc.phone IS NOT NULL AND suc.phone <> ''
+             LIMIT 1) AS contact_phone,
+            s.phone AS supplier_phone
      FROM quotation_suppliers qs
      LEFT JOIN suppliers s ON s.id = qs.supplier_id
      WHERE qs.quotation_id = $1 ORDER BY qs.id`,
