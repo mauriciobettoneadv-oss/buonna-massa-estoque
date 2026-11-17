@@ -160,6 +160,7 @@ async function startServer() {
     await pool.query(`ALTER TABLE conferencia_entrega ADD COLUMN IF NOT EXISTS quotation_id INTEGER REFERENCES quotations(id)`);
     await pool.query(`ALTER TABLE conferencia_entrega ADD COLUMN IF NOT EXISTS supplier_name TEXT`);
     await pool.query(`ALTER TABLE conferencia_entrega ADD COLUMN IF NOT EXISTS unit_id INTEGER REFERENCES units(id)`);
+    await pool.query(`ALTER TABLE conferencia_entrega ADD COLUMN IF NOT EXISTS nota_fiscal_foto TEXT`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS stock_count_edits (
         id SERIAL PRIMARY KEY,

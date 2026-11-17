@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import request from '../api/client';
 
@@ -17,27 +17,64 @@ const STATUS_BADGE = {
 
 const STATUS_LABEL = {
   aberta: 'Em andamento',
-  ok: 'Entrega Confirmada',
-  divergente: 'Com Divergências',
+  ok: 'Confirmada',
+  divergente: 'Divergência',
 };
 
 function fmt(n) {
   return Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function todayLabel() {
+  return new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+}
+
+function compressImage(file, maxW = 1200, quality = 0.72) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ConferenciaEntrega() {
   const { token } = useAuth();
+  const fileInputRef = useRef(null);
+
+  // List state
   const [entregas, setEntregas] = useState([]);
-  const [conferencias, setConferencias] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [showDirectModal, setShowDirectModal] = useState(false);
+  const [todayEntregas, setTodayEntregas] = useState([]);
+  const [loadingToday, setLoadingToday] = useState(true);
+
+  // Detail state
   const [selectedEntrega, setSelectedEntrega] = useState(null);
   const [itens, setItens] = useState([]);
+  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState(null);
 
-  // Direct-from-quotation state
+  // Nota fiscal foto
+  const [nfFoto, setNfFoto] = useState(null);
+  const [savingFoto, setSavingFoto] = useState(false);
+  const [fotoSaved, setFotoSaved] = useState(false);
+
+  // "Com espelho" modal
+  const [showModal, setShowModal] = useState(false);
+  const [conferencias, setConferencias] = useState([]);
+
+  // "Sem espelho" modal
+  const [showDirectModal, setShowDirectModal] = useState(false);
   const [closedQuotations, setClosedQuotations] = useState([]);
   const [directQuotation, setDirectQuotation] = useState(null);
   const [directQuotationData, setDirectQuotationData] = useState(null);
@@ -54,13 +91,23 @@ export default function ConferenciaEntrega() {
     }
   }
 
+  async function fetchTodayEntregas() {
+    setLoadingToday(true);
+    try {
+      const data = await request('/conferencia-entrega/hoje', { token });
+      setTodayEntregas(data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingToday(false);
+    }
+  }
+
   async function fetchConferencias() {
     try {
       const data = await request('/conferencia-pedido', { token });
       setConferencias(data.filter(c => c.status === 'confirmada'));
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   async function fetchClosedQuotations() {
@@ -68,6 +115,66 @@ export default function ConferenciaEntrega() {
       const data = await request('/quotations', { token });
       setClosedQuotations((data || []).filter(q => q.status === 'fechada'));
     } catch (e) { console.error(e); }
+  }
+
+  useEffect(() => {
+    fetchEntregas();
+    fetchTodayEntregas();
+  }, [token]);
+
+  async function openEntrega(id) {
+    setLoading(true);
+    setResult(null);
+    setNfFoto(null);
+    setFotoSaved(false);
+    try {
+      const data = await request(`/conferencia-entrega/${id}`, { token });
+      setSelectedEntrega(data);
+      setItens(data.itens || []);
+      if (data.nota_fiscal_foto) setNfFoto(data.nota_fiscal_foto);
+    } catch (e) {
+      alert('Erro ao abrir conferência: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Starts a conferência directly from today's expected delivery row
+  async function startFromHoje(item) {
+    setLoading(true);
+    try {
+      const nova = await request('/conferencia-entrega/from-quotation', {
+        method: 'POST', token,
+        body: {
+          quotation_id: item.quotation_id,
+          supplier_id: item.qs_id,
+          unit_id: item.unit_id,
+        },
+      });
+      await openEntrega(nova.id);
+      fetchEntregas();
+      fetchTodayEntregas();
+    } catch (e) {
+      alert('Erro ao iniciar conferência: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleNovaEntrega(cpId) {
+    setLoading(true);
+    try {
+      const nova = await request('/conferencia-entrega', {
+        method: 'POST', token,
+        body: { conferencia_pedido_id: cpId },
+      });
+      setShowModal(false);
+      await openEntrega(nova.id);
+    } catch (e) {
+      alert('Erro ao criar conferência: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSelectDirectQuotation(q) {
@@ -90,8 +197,7 @@ export default function ConferenciaEntrega() {
     setLoading(true);
     try {
       const nova = await request('/conferencia-entrega/from-quotation', {
-        method: 'POST',
-        token,
+        method: 'POST', token,
         body: {
           quotation_id: directQuotation.id,
           supplier_id: directSupplier.id,
@@ -99,12 +205,11 @@ export default function ConferenciaEntrega() {
         },
       });
       setShowDirectModal(false);
-      setDirectQuotation(null);
-      setDirectQuotationData(null);
-      setDirectSupplier(null);
-      setDirectUnit(null);
+      setDirectQuotation(null); setDirectQuotationData(null);
+      setDirectSupplier(null); setDirectUnit(null);
       await openEntrega(nova.id);
-      await fetchEntregas();
+      fetchEntregas();
+      fetchTodayEntregas();
     } catch (e) {
       alert('Erro ao criar conferência: ' + e.message);
     } finally {
@@ -112,38 +217,24 @@ export default function ConferenciaEntrega() {
     }
   }
 
-  useEffect(() => {
-    fetchEntregas();
-  }, [token]);
-
-  async function handleNovaEntrega(cpId) {
-    setLoading(true);
+  async function handleNfFoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
     try {
-      const nova = await request('/conferencia-entrega', {
-        method: 'POST',
-        token,
-        body: { conferencia_pedido_id: cpId },
+      const compressed = await compressImage(file);
+      setNfFoto(compressed);
+      setFotoSaved(false);
+      // Auto-save photo immediately
+      setSavingFoto(true);
+      await request(`/conferencia-entrega/${selectedEntrega.id}/foto`, {
+        method: 'PUT', token,
+        body: { nota_fiscal_foto: compressed },
       });
-      setShowModal(false);
-      await openEntrega(nova.id);
-    } catch (e) {
-      alert('Erro ao criar conferência: ' + e.message);
+      setFotoSaved(true);
+    } catch (err) {
+      alert('Erro ao salvar foto: ' + err.message);
     } finally {
-      setLoading(false);
-    }
-  }
-
-  async function openEntrega(id) {
-    setLoading(true);
-    setResult(null);
-    try {
-      const data = await request(`/conferencia-entrega/${id}`, { token });
-      setSelectedEntrega(data);
-      setItens(data.itens || []);
-    } catch (e) {
-      alert('Erro ao abrir conferência: ' + e.message);
-    } finally {
-      setLoading(false);
+      setSavingFoto(false);
     }
   }
 
@@ -155,15 +246,16 @@ export default function ConferenciaEntrega() {
     setSaving(true);
     setResult(null);
     try {
+      const body = { itens };
+      if (nfFoto) body.nota_fiscal_foto = nfFoto;
       const data = await request(`/conferencia-entrega/${selectedEntrega.id}/finalizar`, {
-        method: 'PUT',
-        token,
-        body: { itens },
+        method: 'PUT', token, body,
       });
       setSelectedEntrega(data);
       setItens(data.itens || []);
       setResult(data.status);
-      await fetchEntregas();
+      fetchEntregas();
+      fetchTodayEntregas();
     } catch (e) {
       alert('Erro ao finalizar: ' + e.message);
     } finally {
@@ -171,8 +263,19 @@ export default function ConferenciaEntrega() {
     }
   }
 
+  // Group today's deliveries by unit
+  const todayByUnit = todayEntregas.reduce((acc, item) => {
+    const key = item.unit_name || 'Sem unidade';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+
+  const pendingCount = todayEntregas.filter(t => !t.conferencia_id || t.conferencia_status === 'aberta').length;
+
   return (
     <div className="max-w-4xl mx-auto p-6">
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-brand-red">Conferência de Entrega</h1>
         {!selectedEntrega && (
@@ -193,7 +296,7 @@ export default function ConferenciaEntrega() {
         )}
         {selectedEntrega && (
           <button
-            onClick={() => { setSelectedEntrega(null); setResult(null); }}
+            onClick={() => { setSelectedEntrega(null); setResult(null); setNfFoto(null); }}
             className="text-sm text-brand-red hover:underline"
           >
             ← Voltar à lista
@@ -201,46 +304,162 @@ export default function ConferenciaEntrega() {
         )}
       </div>
 
-      {/* Lista de entregas */}
+      {/* ── LIST VIEW ── */}
       {!selectedEntrega && (
-        <div className="space-y-3">
-          {entregas.length === 0 && (
-            <p className="text-gray-500 text-sm">Nenhuma conferência de entrega registrada.</p>
-          )}
-          {entregas.map(e => (
-            <div
-              key={e.id}
-              className="bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between cursor-pointer hover:border-brand-red"
-              onClick={() => openEntrega(e.id)}
-            >
-              <div>
-                <span className="font-medium text-gray-800">Entrega #{e.id}</span>
-                {e.supplier_name && <span className="text-sm font-medium text-gray-700 ml-2">— {e.supplier_name}</span>}
-                {e.conferente_name && <span className="text-sm text-gray-500 ml-2">por {e.conferente_name}</span>}
-                {e.finalizado_em && (
-                  <span className="text-xs text-gray-400 ml-2">
-                    — {new Date(e.finalizado_em).toLocaleString('pt-BR')}
-                  </span>
-                )}
-              </div>
-              <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_BADGE[e.status] || 'bg-gray-100 text-gray-600'}`}>
-                {STATUS_LABEL[e.status] || e.status}
-              </span>
+        <>
+          {/* Today's deliveries banner */}
+          {!loadingToday && todayEntregas.length > 0 && (
+            <div className="mb-6">
+              {pendingCount > 0 ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+                  <span className="text-2xl">📦</span>
+                  <div>
+                    <p className="font-semibold text-amber-800">
+                      {pendingCount} entrega{pendingCount > 1 ? 's' : ''} pendente{pendingCount > 1 ? 's' : ''} para hoje — {todayLabel()}
+                    </p>
+                    <p className="text-sm text-amber-600 mt-0.5">Registre o recebimento antes das 22h30 para evitar alertas.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+                  <span className="text-2xl">✅</span>
+                  <div>
+                    <p className="font-semibold text-green-800">Todas as entregas conferidas — {todayLabel()}</p>
+                    <p className="text-sm text-green-600 mt-0.5">Nenhuma pendência registrada para hoje.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Deliveries by unit */}
+              {Object.entries(todayByUnit).map(([unitName, items]) => (
+                <div key={unitName} className="mb-5">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{unitName}</h2>
+                  <div className="space-y-2">
+                    {items.map((item, i) => {
+                      const isDone = item.conferencia_id && item.conferencia_status !== 'aberta';
+                      const isInProgress = item.conferencia_id && item.conferencia_status === 'aberta';
+                      return (
+                        <div key={i} className={`bg-white rounded-lg border p-3 flex items-center justify-between gap-3 ${isDone ? 'border-green-200' : 'border-gray-200'}`}>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-lg flex-shrink-0">
+                              {isDone ? (item.conferencia_status === 'ok' ? '✅' : '⚠️') : isInProgress ? '🔄' : '📦'}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-800 truncate">{item.supplier_name}</p>
+                              <p className="text-xs text-gray-400">Cotação #{item.quotation_id}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isDone && (
+                              <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_BADGE[item.conferencia_status] || 'bg-gray-100 text-gray-500'}`}>
+                                {STATUS_LABEL[item.conferencia_status] || item.conferencia_status}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => item.conferencia_id ? openEntrega(item.conferencia_id) : startFromHoje(item)}
+                              disabled={loading}
+                              className={`text-sm px-3 py-1.5 rounded-lg font-medium disabled:opacity-40 ${
+                                isDone ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' :
+                                isInProgress ? 'bg-yellow-500 text-white hover:opacity-90' :
+                                'bg-brand-red text-white hover:opacity-90'
+                              }`}
+                            >
+                              {isDone ? 'Ver' : isInProgress ? 'Continuar' : 'Iniciar'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              <hr className="border-gray-200 my-6" />
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* Historical list */}
+          <div>
+            {todayEntregas.length > 0 && (
+              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Histórico</h2>
+            )}
+            <div className="space-y-3">
+              {entregas.length === 0 && (
+                <p className="text-gray-500 text-sm">Nenhuma conferência de entrega registrada.</p>
+              )}
+              {entregas.map(e => (
+                <div
+                  key={e.id}
+                  className="bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between cursor-pointer hover:border-brand-red"
+                  onClick={() => openEntrega(e.id)}
+                >
+                  <div>
+                    <span className="font-medium text-gray-800">Entrega #{e.id}</span>
+                    {e.supplier_name && <span className="text-sm font-medium text-gray-700 ml-2">— {e.supplier_name}</span>}
+                    {e.conferente_name && <span className="text-sm text-gray-500 ml-2">por {e.conferente_name}</span>}
+                    {e.finalizado_em && (
+                      <span className="text-xs text-gray-400 ml-2">
+                        — {new Date(e.finalizado_em).toLocaleString('pt-BR')}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_BADGE[e.status] || 'bg-gray-100 text-gray-600'}`}>
+                    {STATUS_LABEL[e.status] || e.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Tela de conferência */}
+      {/* ── DETAIL VIEW ── */}
       {selectedEntrega && (
         <div>
           <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 flex items-center justify-between">
-            <span className="font-semibold text-gray-700">Entrega #{selectedEntrega.id}</span>
+            <div>
+              <span className="font-semibold text-gray-700">Entrega #{selectedEntrega.id}</span>
+              {selectedEntrega.supplier_name && (
+                <span className="ml-2 text-gray-600 font-medium">— {selectedEntrega.supplier_name}</span>
+              )}
+            </div>
             <span className={`text-xs px-3 py-1 rounded-full font-medium ${STATUS_BADGE[selectedEntrega.status] || 'bg-gray-100 text-gray-600'}`}>
               {STATUS_LABEL[selectedEntrega.status] || selectedEntrega.status}
             </span>
           </div>
 
+          {/* Nota Fiscal Photo */}
+          <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-gray-700">📋 Nota Fiscal</span>
+              {selectedEntrega.status === 'aberta' && (
+                <label className="cursor-pointer bg-gray-700 hover:bg-gray-800 text-white px-3 py-1 rounded text-xs font-medium">
+                  {nfFoto ? '📷 Trocar foto' : '📷 Tirar foto / Anexar'}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleNfFoto}
+                  />
+                </label>
+              )}
+            </div>
+            {!nfFoto && (
+              <p className="text-xs text-gray-400">Tire uma foto da nota fiscal para registrar o recebimento.</p>
+            )}
+            {nfFoto && (
+              <div>
+                <img src={nfFoto} alt="Nota Fiscal" className="max-h-56 rounded border border-gray-200 object-contain" />
+                <p className="text-xs mt-1 text-gray-400">
+                  {savingFoto ? '⏳ Salvando...' : fotoSaved ? '✅ Foto salva' : ''}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Result banners */}
           {result === 'ok' && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 font-medium text-sm">
               ✅ Entrega confirmada! Todos os itens foram conferidos corretamente.
@@ -248,28 +467,41 @@ export default function ConferenciaEntrega() {
           )}
           {result === 'divergente' && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <p className="font-semibold mb-2">⚠️ Divergências encontradas na entrega:</p>
+              <p className="font-semibold mb-2">⚠️ Divergências encontradas:</p>
               <ul className="space-y-1">
                 {itens.filter(i => i.status !== 'ok').map((i, idx) => (
                   <li key={idx}>
                     {i.status === 'nao_entregue' && `❌ ${i.nome}: Não entregue`}
                     {i.status === 'qtd_errada' && `⚠️ ${i.nome}: Qtd esperada ${i.qtd_pedida}, recebida ${i.qtd_recebida}`}
-                    {i.status === 'preco_divergente' && `💰 ${i.nome}: Valor esperado R$${i.valor_pedido}, cobrado R$${i.valor_recebido}`}
+                    {i.status === 'preco_divergente' && `💰 ${i.nome}: Valor esperado ${fmt(i.valor_pedido)}, cobrado ${fmt(i.valor_recebido)}`}
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
+          {/* Quick-action bar when status is aberta */}
+          {selectedEntrega.status === 'aberta' && (
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setItens(prev => prev.map(i => ({ ...i, status: 'ok' })))}
+                className="flex-1 bg-green-50 border border-green-300 text-green-700 rounded-lg py-2 text-sm font-medium hover:bg-green-100"
+              >
+                ✅ Tudo certo
+              </button>
+            </div>
+          )}
+
+          {/* Items */}
           <div className="space-y-3">
             {itens.map((item, idx) => (
-              <div key={idx} className="bg-white rounded-lg border border-gray-200 p-4">
+              <div key={idx} className={`bg-white rounded-lg border p-4 ${item.status !== 'ok' ? 'border-amber-300' : 'border-gray-200'}`}>
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="flex-1 min-w-[180px]">
                     <p className="font-medium text-gray-800">{item.nome || item.product_name || `Item ${idx + 1}`}</p>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Pedido: {item.qtd_pedida} un × R$ {parseFloat(item.valor_pedido || 0).toFixed(2)}
-                      {' = '}R$ {(parseFloat(item.qtd_pedida || 0) * parseFloat(item.valor_pedido || 0)).toFixed(2)}
+                      Pedido: {item.qtd_pedida} {item.purchase_unit || 'un'} × {fmt(item.valor_pedido)}
+                      {' = '}{fmt((item.qtd_pedida || 0) * (item.valor_pedido || 0))}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -323,7 +555,7 @@ export default function ConferenciaEntrega() {
         </div>
       )}
 
-      {/* Modal para selecionar conferência de pedido */}
+      {/* Modal: com espelho */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
@@ -355,14 +587,13 @@ export default function ConferenciaEntrega() {
         </div>
       )}
 
-      {/* Modal direto sem espelho */}
+      {/* Modal: sem espelho */}
       {showDirectModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-gray-800 mb-1">Conferência sem espelho</h2>
-            <p className="text-xs text-gray-500 mb-4">Para fornecedores que não enviam espelho (Bressan, BRF, Ambev, Coca-Cola…). A conferência é feita diretamente no momento do recebimento.</p>
+            <p className="text-xs text-gray-500 mb-4">Para fornecedores que não enviam espelho (Bressan, BRF, Ambev, Coca-Cola…).</p>
 
-            {/* Step 1: selecionar cotação */}
             <p className="text-sm font-semibold text-gray-700 mb-2">1. Cotação</p>
             <div className="flex flex-wrap gap-2 mb-4">
               {closedQuotations.length === 0 && <p className="text-sm text-gray-400">Nenhuma cotação fechada.</p>}
@@ -377,7 +608,6 @@ export default function ConferenciaEntrega() {
 
             {loadingDirectQuotation && <p className="text-sm text-gray-400 mb-4">Carregando...</p>}
 
-            {/* Step 2: selecionar unidade */}
             {directQuotationData && (
               <>
                 <p className="text-sm font-semibold text-gray-700 mb-2">2. Loja (opcional)</p>
@@ -394,7 +624,6 @@ export default function ConferenciaEntrega() {
                   ))}
                 </div>
 
-                {/* Step 3: selecionar fornecedor */}
                 <p className="text-sm font-semibold text-gray-700 mb-2">3. Fornecedor</p>
                 <div className="flex flex-wrap gap-2 mb-6">
                   {directQuotationData.suppliers.map(s => (

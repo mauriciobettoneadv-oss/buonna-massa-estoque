@@ -12,6 +12,71 @@ async function listEntregas(req, res) {
   res.json(result.rows);
 }
 
+async function getHoje(req, res) {
+  const DAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  const todayPrefix = DAYS[new Date().getDay()];
+
+  const userRow = await pool.query(`SELECT unit_id FROM users WHERE id = $1`, [req.user.id]);
+  const userUnitId = userRow.rows[0]?.unit_id;
+  const isAdmin = ['dono', 'proprietario', 'gerente'].includes(req.user.role);
+
+  const params = [todayPrefix];
+  let unitFilter = '';
+  if (!isAdmin && userUnitId) {
+    params.push(userUnitId);
+    unitFilter = `AND u.id = $${params.length}`;
+  }
+
+  const result = await pool.query(`
+    SELECT
+      qs.id AS qs_id,
+      qs.name AS supplier_name,
+      q.id AS quotation_id,
+      u.id AS unit_id,
+      u.name AS unit_name,
+      (
+        SELECT ce2.id FROM conferencia_entrega ce2
+        WHERE (ce2.quotation_id = q.id AND ce2.supplier_name = qs.name)
+          AND (ce2.unit_id = u.id OR ce2.unit_id IS NULL)
+        ORDER BY ce2.id DESC LIMIT 1
+      ) AS conferencia_id,
+      (
+        SELECT ce2.status FROM conferencia_entrega ce2
+        WHERE (ce2.quotation_id = q.id AND ce2.supplier_name = qs.name)
+          AND (ce2.unit_id = u.id OR ce2.unit_id IS NULL)
+        ORDER BY ce2.id DESC LIMIT 1
+      ) AS conferencia_status
+    FROM quotation_suppliers qs
+    JOIN quotations q ON q.id = qs.quotation_id
+    JOIN suppliers s ON s.id = qs.supplier_id
+    JOIN quotation_counts qc ON qc.quotation_id = q.id
+    JOIN stock_counts sc ON sc.id = qc.stock_count_id
+    JOIN units u ON u.id = sc.unit_id
+    WHERE q.status = 'fechada'
+      AND q.created_at > NOW() - INTERVAL '14 days'
+      AND EXISTS (
+        SELECT 1 FROM unnest(COALESCE(s.delivery_days, '{}')) d
+        WHERE lower(d) LIKE $1 || '%'
+      )
+      ${unitFilter}
+    GROUP BY qs.id, qs.name, q.id, u.id, u.name
+    ORDER BY u.name, qs.name
+  `, params);
+
+  res.json(result.rows);
+}
+
+async function saveFoto(req, res) {
+  const { id } = req.params;
+  const { nota_fiscal_foto } = req.body;
+  const result = await pool.query(
+    `UPDATE conferencia_entrega SET nota_fiscal_foto = $1 WHERE id = $2 RETURNING id`,
+    [nota_fiscal_foto || null, id]
+  );
+  if (!result.rows.length) return res.status(404).json({ error: 'Não encontrada.' });
+  res.json({ ok: true });
+}
+
 async function createEntrega(req, res) {
   const { conferencia_pedido_id } = req.body;
   const cp = await pool.query(`SELECT * FROM conferencia_pedido WHERE id = $1`, [conferencia_pedido_id]);
@@ -40,16 +105,20 @@ async function getEntrega(req, res) {
 
 async function finalizeEntrega(req, res) {
   const { id } = req.params;
-  const { itens } = req.body;
+  const { itens, nota_fiscal_foto } = req.body;
 
   const temDivergencia = itens.some(i => i.status !== 'ok');
   const status = temDivergencia ? 'divergente' : 'ok';
 
+  const fotoField = nota_fiscal_foto !== undefined ? ', nota_fiscal_foto = $5' : '';
+  const params = [JSON.stringify(itens), status, req.user.id, id];
+  if (nota_fiscal_foto !== undefined) params.push(nota_fiscal_foto);
+
   const result = await pool.query(
     `UPDATE conferencia_entrega
-     SET itens = $1, status = $2, finalizado_em = NOW(), conferente_id = $3
+     SET itens = $1, status = $2, finalizado_em = NOW(), conferente_id = $3${fotoField}
      WHERE id = $4 RETURNING *`,
-    [JSON.stringify(itens), status, req.user.id, id]
+    params
   );
 
   if (!result.rows.length) return res.status(404).json({ error: 'Não encontrada.' });
@@ -166,4 +235,4 @@ async function createEntregaFromQuotation(req, res) {
   res.status(201).json(result.rows[0]);
 }
 
-module.exports = { listEntregas, createEntrega, getEntrega, finalizeEntrega, createEntregaFromQuotation };
+module.exports = { listEntregas, getHoje, createEntrega, getEntrega, finalizeEntrega, saveFoto, createEntregaFromQuotation };
