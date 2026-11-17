@@ -88,13 +88,22 @@ export default function ConferenciaPedido() {
 
   function buildItensForUnit(data, unitId) {
     const unit = data.counts.find((c) => String(c.unit_id) === String(unitId));
+    const unitName = unit?.unit_name || '';
+
+    // Only consider suppliers that deliver to this unit's city
+    // (empty delivery_cities = delivers everywhere)
+    const eligibleSuppliers = data.suppliers.filter((s) => {
+      const cities = Array.isArray(s.delivery_cities) ? s.delivery_cities : [];
+      return cities.length === 0 || cities.includes(unitName);
+    });
+
     return data.products
-      .filter((p) => p.qtys[unitId] > 0 || Object.values(p.qtys).some((v) => v > 0))
+      .filter((p) => p.qtys[unitId] > 0)
       .map((p) => {
-        // best price for this product (smallest unit_price in quotation_prices)
+        // best price among suppliers eligible for this unit
         let bestPrice = 0;
         let bestSupplier = '';
-        for (const s of data.suppliers) {
+        for (const s of eligibleSuppliers) {
           const px = data.prices.find((pr) => pr.supplier_id === s.id && pr.product_id === p.product_id);
           const price = Number(px?.unit_price || 0);
           if (price > 0 && (bestPrice === 0 || price < bestPrice)) {
