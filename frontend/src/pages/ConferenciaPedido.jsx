@@ -143,6 +143,29 @@ export default function ConferenciaPedido() {
     setItens((prev) => prev.map((item, i) => i === idx ? { ...item, [field]: value, conferido: true } : item));
   }
 
+  function markItemOk(idx) {
+    setItens((prev) => prev.map((item, i) =>
+      i === idx ? { ...item, conferido: true, aceito: false,
+        qty_recebida: item.qty_pedida, valor_cobrado: item.preco_acordado } : item
+    ));
+  }
+
+  function markAllOk() {
+    setItens((prev) => prev.map((item) => ({
+      ...item, conferido: true, aceito: false,
+      qty_recebida: item.qty_pedida, valor_cobrado: item.preco_acordado,
+    })));
+  }
+
+  function markSupplierOk(supplierName) {
+    setItens((prev) => prev.map((item) =>
+      item.supplier_name === supplierName
+        ? { ...item, conferido: true, aceito: false,
+            qty_recebida: item.qty_pedida, valor_cobrado: item.preco_acordado }
+        : item
+    ));
+  }
+
   function isDivergente(item) {
     if (item.aceito) return false;
     const qtyDiff = Math.abs(Number(item.qty_recebida) - Number(item.qty_pedida)) > 0.001;
@@ -222,7 +245,11 @@ export default function ConferenciaPedido() {
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-xl font-bold text-brand-red mb-4">Conferência de Pedido</h1>
-      <p className="text-sm text-gray-500 mb-4">Verifique se o pedido lançado pelo vendedor está de acordo com o que você solicitou na cotação. Importe o espelho do pedido (PDF ou foto) para preencher automaticamente.</p>
+      <p className="text-sm text-gray-500 mb-4">
+        Confira se o pedido do vendedor está de acordo com o que foi cotado.
+        {' '}<span className="font-medium text-gray-700">Sem espelho?</span> Marque os itens que chegaram certo com ✓ OK e edite manualmente só os que divergiram.
+        {' '}O botão "Importar espelho" é opcional — preenche automaticamente se você tiver o PDF ou foto.
+      </p>
 
       {/* Select quotation */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -297,9 +324,18 @@ export default function ConferenciaPedido() {
                   🔴 {divergentes.length} divergência{divergentes.length > 1 ? 's' : ''}
                 </span>
               )}
+              {itens.some((i) => !i.conferido) && (
+                <button
+                  onClick={markAllOk}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-green-600 text-green-700 hover:bg-green-600 hover:text-white transition-colors"
+                  title="Marcar todos os itens como recebidos conforme pedido"
+                >
+                  ✓ Todos chegaram OK
+                </button>
+              )}
               <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer border transition-colors ${extracting ? 'border-gray-300 text-gray-400 cursor-not-allowed' : 'border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-white'}`}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                {extracting ? 'Processando espelho...' : 'Importar espelho do pedido'}
+                {extracting ? 'Processando espelho...' : 'Importar espelho (opcional)'}
                 <input
                   type="file"
                   accept="image/*,application/pdf"
@@ -332,6 +368,16 @@ export default function ConferenciaPedido() {
                 <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 border-b border-gray-300">
                   <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">🏭 {fornecedor}</span>
                   <span className="text-xs text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">{items.length} produto{items.length !== 1 ? 's' : ''}</span>
+                  <div className="ml-auto flex gap-2">
+                    {items.some((i) => !i.conferido) && (
+                      <button
+                        onClick={() => markSupplierOk(fornecedor)}
+                        className="text-xs border border-green-500 text-green-700 rounded px-2 py-0.5 hover:bg-green-500 hover:text-white transition-colors"
+                      >
+                        ✓ Todos OK
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="divide-y divide-gray-100">
                   {items.map((item) => {
@@ -343,11 +389,21 @@ export default function ConferenciaPedido() {
                       >
                         <div className="flex items-start justify-between mb-2">
                           <span className="font-semibold text-gray-800">{item.name}</span>
-                          {item.conferido && (
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${item.aceito ? 'bg-gray-100 text-gray-500' : div ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                              {item.aceito ? '✓ Aceito' : div ? '🔴 Divergente' : '✅ OK'}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {!item.conferido && (
+                              <button
+                                onClick={() => markItemOk(item._idx)}
+                                className="text-xs border border-green-500 text-green-700 rounded-full px-2.5 py-0.5 hover:bg-green-500 hover:text-white transition-colors font-medium"
+                              >
+                                ✓ OK
+                              </button>
+                            )}
+                            {item.conferido && (
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${item.aceito ? 'bg-gray-100 text-gray-500' : div ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                {item.aceito ? '✓ Aceito' : div ? '🔴 Divergente' : '✅ OK'}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600 mb-3">
