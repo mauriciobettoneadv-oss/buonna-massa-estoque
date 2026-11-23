@@ -164,19 +164,34 @@ function ExtractResultModal({ result, onClose }) {
 // ─── Orders View ──────────────────────────────────────────────────────────────
 
 function OrdersView({ quotationId, token, onBack }) {
+  const storageKey = `pedidos_q${quotationId}`;
+
+  function loadSaved(field, fallback) {
+    try { return JSON.parse(localStorage.getItem(storageKey) || '{}')[field] ?? fallback; } catch { return fallback; }
+  }
+
   const [data, setData] = useState(null);
   const [copied, setCopied] = useState({});
-  const [qtyOverrides, setQtyOverrides] = useState({});
-  const [supplierOverrides, setSupplierOverrides] = useState({});
+  const [qtyOverrides, setQtyOverrides] = useState(() => loadSaved('qtyOverrides', {}));
+  const [supplierOverrides, setSupplierOverrides] = useState(() => loadSaved('supplierOverrides', {}));
   const [openPicker, setOpenPicker] = useState(null);
   const [useAltBrand, setUseAltBrand] = useState({});
   const [consolidatedIn, setConsolidatedIn] = useState({});
-  const [crossCityItems, setCrossCity] = useState({});
-  // crossCityItems: { [productId]: { item, qty, fromUnit, toUnit, supplierName, unitPrice, hadToItem } }
+  // crossCityItems: { [productId]: { qty, fromUnit, toUnit, supplierName, unitPrice, hadToItem } }
+  // Note: no 'item' object stored — looked up from orders at render time
+  const [crossCityItems, setCrossCity] = useState(() => loadSaved('crossCityItems', {}));
 
   useEffect(() => {
     request(`/quotations/${quotationId}/orders`, { token }).then(setData);
   }, [quotationId, token]);
+
+  // Persist overrides and cross-city state to localStorage
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      localStorage.setItem(storageKey, JSON.stringify({ ...saved, qtyOverrides, supplierOverrides, crossCityItems }));
+    } catch {}
+  }, [qtyOverrides, supplierOverrides, crossCityItems]);
 
   if (!data) return <p className="text-gray-500 p-4">Carregando pedidos...</p>;
 
@@ -259,7 +274,7 @@ function OrdersView({ quotationId, token, onBack }) {
     }
     setCrossCity((prev) => ({
       ...prev,
-      [item.product_id]: { item, qty, fromUnit, toUnit, supplierName: suggestion.supplier_name, unitPrice: suggestion.unit_price, hadToItem: !!toItem },
+      [item.product_id]: { qty, fromUnit, toUnit, supplierName: suggestion.supplier_name, unitPrice: suggestion.unit_price, hadToItem: !!toItem },
     }));
   }
 
@@ -302,11 +317,15 @@ function OrdersView({ quotationId, token, onBack }) {
     // Phantom items for cross-city consolidations (product not in target unit's orders)
     for (const [productId, ci] of Object.entries(crossCityItems)) {
       if (ci.hadToItem) continue;
-      const { item, toUnit, supplierName } = ci;
+      const { fromUnit, toUnit, supplierName } = ci;
+      // Look up source item from orders (no stored object)
+      const sourceOrder = orders.find((o) => o.unit_name === fromUnit);
+      const sourceItem = sourceOrder?.items.find((i) => String(i.product_id) === String(productId));
+      if (!sourceItem) continue;
       if (!map[supplierName]) map[supplierName] = {};
       if (!map[supplierName][toUnit]) map[supplierName][toUnit] = [];
       if (!map[supplierName][toUnit].some((i) => String(i.product_id) === String(productId))) {
-        map[supplierName][toUnit].push({ ...item, _crossCityFrom: ci.fromUnit });
+        map[supplierName][toUnit].push({ ...sourceItem, _crossCityFrom: fromUnit });
       }
     }
     return map;
@@ -580,11 +599,16 @@ function OrdersView({ quotationId, token, onBack }) {
                                   </div>
                                 )}
                                 {crossCityItems[item.product_id]?.fromUnit === unitName && (
-                                  <div className="mt-1 flex items-center gap-2">
+                                  <div className="mt-1 flex items-center gap-2 flex-wrap">
                                     <span className="inline-flex items-center gap-1 text-[11px] bg-teal-50 border border-teal-200 text-teal-700 px-2 py-0.5 rounded-full font-medium">
                                       🚗 Vai buscar em {crossCityItems[item.product_id].toUnit} ({crossCityItems[item.product_id].supplierName})
                                     </span>
-                                    <button onClick={() => undoCrossCity(item.product_id)} className="text-[11px] text-gray-400 hover:text-gray-600 underline">desfazer</button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); undoCrossCity(item.product_id); }}
+                                      className="text-[11px] font-medium text-red-500 hover:text-red-700 border border-red-200 bg-red-50 px-2 py-0.5 rounded hover:bg-red-100"
+                                    >
+                                      ↩ Reverter
+                                    </button>
                                   </div>
                                 )}
                                 {/* Consolidation controls */}
