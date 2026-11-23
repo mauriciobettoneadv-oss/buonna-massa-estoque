@@ -1105,12 +1105,30 @@ export default function Quotation() {
 
   async function handleMerge() {
     if (mergeSelection.length !== 2) return;
-    const [a, b] = mergeSelection.sort((x, y) => x - y);
+    const [a, b] = [...mergeSelection].sort((x, y) => x - y);
     if (!window.confirm(`Mesclar Cotação #${b} dentro de Cotação #${a}? A Cotação #${b} será excluída.`)) return;
     setMerging(true);
     try {
       await request('/quotations/merge', { method: 'POST', token, body: { target_id: a, source_id: b } });
       setMergeSelection([]);
+      await loadList();
+    } catch (e) {
+      alert('Erro ao mesclar: ' + e.message);
+    } finally {
+      setMerging(false);
+    }
+  }
+
+  async function handleMergeGroup(group) {
+    const sorted = [...group].sort((a, b) => a.id - b.id);
+    const names = sorted.map(q => `#${q.id}`).join(' e ');
+    if (!window.confirm(`Mesclar as cotações ${names} em uma só? As mais recentes serão absorvidas pela #${sorted[0].id}.`)) return;
+    setMerging(true);
+    try {
+      // Merge sequentially: always merge the second into the first
+      for (let i = 1; i < sorted.length; i++) {
+        await request('/quotations/merge', { method: 'POST', token, body: { target_id: sorted[0].id, source_id: sorted[i].id } });
+      }
       await loadList();
     } catch (e) {
       alert('Erro ao mesclar: ' + e.message);
@@ -1321,11 +1339,40 @@ export default function Quotation() {
 
       {/* List */}
       {!selectedId && (
+        <>
+          {/* Auto-detect duplicate open quotations on the same date */}
+          {isOwner && (() => {
+            const openByDate = {};
+            quotations.filter(q => q.status !== 'fechada').forEach(q => {
+              const d = new Date(q.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+              if (!openByDate[d]) openByDate[d] = [];
+              openByDate[d].push(q);
+            });
+            const dupes = Object.entries(openByDate).filter(([, g]) => g.length > 1);
+            if (!dupes.length) return null;
+            return dupes.map(([date, group]) => (
+              <div key={date} className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">
+                    ⚠️ Cotações separadas para o mesmo dia ({date})
+                  </p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    {group.map(q => `#${q.id} (${q.units?.join('+')})`).join(' · ')} — clique para unificar em uma só.
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleMergeGroup(group)}
+                  disabled={merging}
+                  className="flex-shrink-0 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  {merging ? 'Mesclando...' : 'Mesclar'}
+                </button>
+              </div>
+            ));
+          })()}
+
         <div className="bg-white rounded-lg shadow divide-y">
           {quotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação encontrada.</p>}
-          {mergeSelection.length === 0 && isOwner && (
-            <p className="p-3 text-xs text-gray-400 border-b">Dica: selecione 2 cotações abertas para mesclá-las.</p>
-          )}
           {quotations.map((q) => {
             const closed = q.status === 'fechada';
             const isSelected = mergeSelection.includes(q.id);
@@ -1352,6 +1399,7 @@ export default function Quotation() {
             );
           })}
         </div>
+        </>
       )}
 
       {/* Detail */}
