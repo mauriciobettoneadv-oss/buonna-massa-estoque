@@ -606,22 +606,23 @@ function ComparisonTab({ data }) {
         </thead>
         <tbody>
           {products.map((p) => {
-            // Gather all prices for this product
+            // Show raw price (per price_unit, e.g. R$/kg) for fair comparison
             const rowPrices = suppliers.map((s) => {
               const raw = priceMap[s.id]?.[p.product_id] || 0;
-              return raw > 0 ? raw * priceMultiplier(p) : null;
+              return raw > 0 ? raw : null;
             });
             const valid = rowPrices.filter((v) => v !== null);
             const minP = valid.length ? Math.min(...valid) : 0;
             const maxP = valid.length ? Math.max(...valid) : 0;
             const range = maxP - minP;
+            const unitLabel = p.price_unit || p.purchase_unit;
 
             return (
               <tr key={p.product_id} className="border-b hover:bg-gray-50/50">
                 <td className="px-3 py-1.5 border-r sticky left-0 bg-white z-10 font-medium text-gray-700">
                   {p.name}
-                  {p.purchase_unit && (
-                    <span className="ml-1 text-gray-400 font-normal">/{p.purchase_unit}</span>
+                  {unitLabel && (
+                    <span className="ml-1 text-gray-400 font-normal">/{unitLabel}</span>
                   )}
                 </td>
                 {unitNames.map((uName) => {
