@@ -241,12 +241,13 @@ export default function CountHistory() {
                       const countEdits = editsCache[c.id] || [];
                       const editedFields = new Set(countEdits.map((e) => `${e.product_id}_${e.field}`));
 
-                      function EditableCell({ countId, productId, field, value }) {
+                      // Helper called as function (not component) to avoid remount on every keystroke
+                      const cellTd = (countId, productId, field, value) => {
                         const isEditing = editingCell?.countId === countId && editingCell?.productId === productId && editingCell?.field === field;
                         const wasEdited = editedFields.has(`${productId}_${field}`);
                         if (isEditing) {
                           return (
-                            <td className="text-right">
+                            <td key={field} className="text-right">
                               <input
                                 ref={editInputRef}
                                 type="text"
@@ -263,6 +264,7 @@ export default function CountHistory() {
                         }
                         return (
                           <td
+                            key={field}
                             className={`text-right font-mono ${canEdit ? 'cursor-pointer hover:bg-blue-50 rounded' : ''} ${wasEdited ? 'text-blue-600' : ''}`}
                             onClick={canEdit ? () => startEdit(countId, productId, field, value) : undefined}
                             title={canEdit ? 'Clique para editar' : undefined}
@@ -270,7 +272,7 @@ export default function CountHistory() {
                             {value}{wasEdited && <span className="text-blue-400 ml-0.5">✎</span>}
                           </td>
                         );
-                      }
+                      };
 
                       return (
                         <>
@@ -286,16 +288,16 @@ export default function CountHistory() {
                               </tr>
                             </thead>
                             <tbody>
-                              {itemsCache[c.id].filter((i) => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).map((item, idx) => {
+                              {itemsCache[c.id].filter((i) => Number(i.current_stock) > 0 || Number(i.qty_to_buy) > 0).map((item) => {
                                 const isZero = Number(item.current_stock) === 0;
                                 const hasToBuy = Number(item.qty_to_buy) > 0;
                                 const rowCls = [isZero ? 'text-gray-300' : '', hasToBuy ? 'bg-yellow-50' : ''].filter(Boolean).join(' ');
                                 return (
                                   <tr key={item.product_id} className={`border-b border-gray-100 ${rowCls}`}>
                                     <td className="py-1 text-gray-700">{item.name}</td>
-                                    <EditableCell countId={c.id} productId={item.product_id} field="current_stock" value={item.current_stock} />
+                                    {cellTd(c.id, item.product_id, 'current_stock', item.current_stock)}
                                     <td className="text-right text-gray-400 text-xs">{item.unit_measure}</td>
-                                    <EditableCell countId={c.id} productId={item.product_id} field="qty_to_buy" value={item.qty_to_buy} />
+                                    {cellTd(c.id, item.product_id, 'qty_to_buy', item.qty_to_buy)}
                                     <td className="text-right text-gray-400 text-xs">{item.purchase_unit || item.unit_measure}</td>
                                   </tr>
                                 );

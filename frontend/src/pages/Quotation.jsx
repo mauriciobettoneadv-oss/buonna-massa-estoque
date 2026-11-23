@@ -586,15 +586,15 @@ function ComparisonTab({ data }) {
       <div className="px-4 py-2 border-b text-sm text-gray-500">
         Comparativo de preços entre fornecedores — azul = melhor preço, vermelho = pior.
       </div>
-      <table className="text-xs w-full border-collapse">
+      <table className="text-xs w-full border-collapse" style={{ minWidth: '100%' }}>
         <thead>
           <tr className="bg-gray-50">
-            <th className="text-left px-3 py-2 border-b border-r font-medium text-gray-600 sticky left-0 bg-gray-50 z-10 min-w-[140px]">
+            <th className="text-left px-3 py-2 border-b border-r font-medium text-gray-600 sticky left-0 bg-gray-50 z-10 min-w-[130px] max-w-[180px]">
               Produto
             </th>
             {unitNames.map((u) => (
-              <th key={u} className="px-2 py-2 border-b border-r font-medium text-gray-500 whitespace-nowrap">
-                Qtd {u}
+              <th key={u} className="px-1 py-2 border-b border-r font-medium text-gray-500 whitespace-nowrap w-14 text-center">
+                {u.split(' ')[0]}
               </th>
             ))}
             {suppliers.map((s) => (
@@ -628,7 +628,7 @@ function ComparisonTab({ data }) {
                   const unit = data.counts.find((c) => c.unit_name === uName);
                   const qty = unit ? (p.qtys[unit.unit_id] || 0) : 0;
                   return (
-                    <td key={uName} className="px-2 py-1.5 border-r text-center text-gray-500">
+                    <td key={uName} className="px-1 py-1.5 border-r text-center text-gray-500 w-14">
                       {qty > 0 ? qty : <span className="text-gray-300">—</span>}
                     </td>
                   );
