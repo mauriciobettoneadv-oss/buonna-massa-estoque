@@ -249,11 +249,10 @@ export default function CountHistory() {
                             <td className="text-right">
                               <input
                                 ref={editInputRef}
-                                type="number"
-                                min="0"
-                                step="0.5"
+                                type="text"
+                                inputMode="decimal"
                                 value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
+                                onChange={(e) => setEditValue(e.target.value.replace(/[^0-9.,]/g, ''))}
                                 onBlur={saveEdit}
                                 onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingCell(null); }}
                                 className="w-16 text-right border border-blue-400 rounded px-1 py-0 text-xs font-mono bg-white"
