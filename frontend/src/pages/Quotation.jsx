@@ -171,6 +171,8 @@ function OrdersView({ quotationId, token, onBack }) {
   const [openPicker, setOpenPicker] = useState(null);
   const [useAltBrand, setUseAltBrand] = useState({});
   const [consolidatedIn, setConsolidatedIn] = useState({});
+  const [crossCityItems, setCrossCity] = useState({});
+  // crossCityItems: { [productId]: { item, qty, fromUnit, toUnit, supplierName, unitPrice, hadToItem } }
 
   useEffect(() => {
     request(`/quotations/${quotationId}/orders`, { token }).then(setData);
@@ -235,6 +237,52 @@ function OrdersView({ quotationId, token, onBack }) {
     setConsolidatedIn((prev) => { const n = { ...prev }; delete n[item.product_id]; return n; });
   }
 
+  function handleAcceptCrossCity(item, fromUnit, suggestion) {
+    const qty = effQty(fromUnit, item);
+    if (!qty) return;
+    const toUnit = (suggestion.delivery_cities || [])[0];
+    if (!toUnit) return;
+    // Zero qty in source unit
+    setQtyOverride(fromUnit, item.product_id, 0);
+    // Find if target unit already has this product
+    const toOrder = orders.find((o) => o.unit_name === toUnit);
+    const toItem = toOrder?.items.find((i) => i.product_id === item.product_id);
+    const existingToQty = toItem ? effQty(toUnit, toItem) : 0;
+    const totalQty = qty + existingToQty;
+    const toKey = ovrKey(toUnit, item.product_id);
+    setQtyOverrides((prev) => ({ ...prev, [toKey]: totalQty }));
+    if (!toItem) {
+      setSupplierOverrides((prev) => ({
+        ...prev,
+        [toKey]: { supplier_name: suggestion.supplier_name, unit_price: suggestion.unit_price, alt_brand: null },
+      }));
+    }
+    setCrossCity((prev) => ({
+      ...prev,
+      [item.product_id]: { item, qty, fromUnit, toUnit, supplierName: suggestion.supplier_name, unitPrice: suggestion.unit_price, hadToItem: !!toItem },
+    }));
+  }
+
+  function undoCrossCity(productId) {
+    const ci = crossCityItems[productId];
+    if (!ci) return;
+    const fromKey = ovrKey(ci.fromUnit, productId);
+    const toKey = ovrKey(ci.toUnit, productId);
+    setQtyOverrides((prev) => { const n = { ...prev }; delete n[fromKey]; return n; });
+    if (ci.hadToItem) {
+      setQtyOverrides((prev) => {
+        const cur = prev[toKey] !== undefined ? Number(prev[toKey]) : 0;
+        const restored = cur - ci.qty;
+        if (restored <= 0) { const n = { ...prev }; delete n[toKey]; return n; }
+        return { ...prev, [toKey]: restored };
+      });
+    } else {
+      setQtyOverrides((prev) => { const n = { ...prev }; delete n[toKey]; return n; });
+      setSupplierOverrides((prev) => { const n = { ...prev }; delete n[toKey]; return n; });
+    }
+    setCrossCity((prev) => { const n = { ...prev }; delete n[productId]; return n; });
+  }
+
   function effAltBrand(unitName, item) {
     const k = ovrKey(unitName, item.product_id);
     if (supplierOverrides[k] !== undefined) return supplierOverrides[k].alt_brand || null;
@@ -249,6 +297,16 @@ function OrdersView({ quotationId, token, onBack }) {
         if (!map[supplier]) map[supplier] = {};
         if (!map[supplier][order.unit_name]) map[supplier][order.unit_name] = [];
         map[supplier][order.unit_name].push(item);
+      }
+    }
+    // Phantom items for cross-city consolidations (product not in target unit's orders)
+    for (const [productId, ci] of Object.entries(crossCityItems)) {
+      if (ci.hadToItem) continue;
+      const { item, toUnit, supplierName } = ci;
+      if (!map[supplierName]) map[supplierName] = {};
+      if (!map[supplierName][toUnit]) map[supplierName][toUnit] = [];
+      if (!map[supplierName][toUnit].some((i) => String(i.product_id) === String(productId))) {
+        map[supplierName][toUnit].push({ ...item, _crossCityFrom: ci.fromUnit });
       }
     }
     return map;
@@ -277,6 +335,7 @@ function OrdersView({ quotationId, token, onBack }) {
           }
         }
         text += ` — ${item.name}`;
+        if (item._crossCityFrom) text += ` (levar para ${item._crossCityFrom})`;
         if (altBrandNote) text += ` ⚠ marca alternativa: ${altBrandNote}`;
         text += '\n';
       }
@@ -393,6 +452,44 @@ function OrdersView({ quotationId, token, onBack }) {
     );
   }
 
+  function renderCrossCitySuggestion(unitName, item) {
+    if (item._crossCityFrom) return null; // phantom item, already cross-city
+    if (crossCityItems[item.product_id]) return null; // already handled
+    if (consolidatedIn[item.product_id]) return null;
+    const options = supplierOptions[item.product_id] || [];
+    const currentPrice = item.unit_price || 0;
+    if (!currentPrice) return null;
+    let best = null;
+    for (const opt of options) {
+      if (!opt.is_restricted) continue;
+      const cities = opt.delivery_cities || [];
+      if (cities.includes(unitName)) continue; // delivers here, not cross-city
+      if (!opt.unit_price || opt.unit_price <= 0) continue;
+      if (opt.unit_price < currentPrice * 0.9) {
+        if (!best || opt.unit_price < best.unit_price) best = opt;
+      }
+    }
+    if (!best) return null;
+    const pct = Math.round((1 - best.unit_price / currentPrice) * 100);
+    const toUnit = (best.delivery_cities || [])[0] || '—';
+    return (
+      <div className="mt-1.5 bg-green-50 border border-green-200 rounded-lg px-2.5 py-2">
+        <p className="text-[11px] font-semibold text-green-800">
+          💡 {best.supplier_name} ({toUnit}) — {pct}% mais barato
+        </p>
+        <p className="text-[10px] text-green-700 mb-1.5">
+          Comprar em {toUnit} e levar para {unitName}
+        </p>
+        <button
+          onClick={(e) => { e.stopPropagation(); handleAcceptCrossCity(item, unitName, best); }}
+          className="text-[11px] font-semibold bg-green-600 text-white px-2.5 py-1 rounded hover:bg-green-700"
+        >
+          Aceitar sugestão
+        </button>
+      </div>
+    );
+  }
+
   const supplierMap = buildSupplierMap();
   const unitNames = orders.map((o) => o.unit_name);
 
@@ -476,15 +573,29 @@ function OrdersView({ quotationId, token, onBack }) {
                                 {renderSupplierPicker(unitName, item)}
                                 {renderSecondPriceBadge(unitName, item)}
                                 {renderAltBrandBadge(unitName, item)}
+                                {/* Cross-city badges */}
+                                {item._crossCityFrom && (
+                                  <div className="mt-1 inline-flex items-center gap-1 text-[11px] bg-teal-50 border border-teal-200 text-teal-800 px-2 py-0.5 rounded-full font-medium">
+                                    🚗 Levar para {item._crossCityFrom}
+                                  </div>
+                                )}
+                                {crossCityItems[item.product_id]?.fromUnit === unitName && (
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1 text-[11px] bg-teal-50 border border-teal-200 text-teal-700 px-2 py-0.5 rounded-full font-medium">
+                                      🚗 Vai buscar em {crossCityItems[item.product_id].toUnit} ({crossCityItems[item.product_id].supplierName})
+                                    </span>
+                                    <button onClick={() => undoCrossCity(item.product_id)} className="text-[11px] text-gray-400 hover:text-gray-600 underline">desfazer</button>
+                                  </div>
+                                )}
                                 {/* Consolidation controls */}
-                                {consolidatedIn[item.product_id] === unitName ? (
+                                {!item._crossCityFrom && (consolidatedIn[item.product_id] === unitName ? (
                                   <div className="mt-1 flex items-center gap-2">
                                     <span className="inline-flex items-center gap-1 text-[11px] bg-blue-50 border border-blue-300 text-blue-700 px-2 py-0.5 rounded-full font-medium">
                                       🔄 Compra consolidada
                                     </span>
                                     <button onClick={() => handleDeconsolidate(item)} className="text-[11px] text-gray-400 hover:text-gray-600 underline">desfazer</button>
                                   </div>
-                                ) : !consolidatedIn[item.product_id] && orders.length > 1 ? (
+                                ) : !consolidatedIn[item.product_id] && !crossCityItems[item.product_id] && orders.length > 1 ? (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleConsolidate(unitName, item); }}
                                     className="mt-1 text-[11px] text-blue-500 hover:text-blue-700 hover:underline"
@@ -492,7 +603,9 @@ function OrdersView({ quotationId, token, onBack }) {
                                   >
                                     🔄 Comprar tudo aqui
                                   </button>
-                                ) : null}
+                                ) : null)}
+                                {/* Cross-city savings suggestion */}
+                                {renderCrossCitySuggestion(unitName, item)}
                               </div>
                             ))}
                           </div>
