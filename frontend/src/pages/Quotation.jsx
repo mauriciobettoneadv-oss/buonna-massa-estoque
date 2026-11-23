@@ -332,15 +332,17 @@ function OrdersView({ quotationId, token, onBack }) {
   }
 
   function buildSupplierText(supplierName, unitMap) {
-    const date = new Date().toLocaleDateString('pt-BR');
-    let text = `PEDIDO – BUONNA MASSA\nFornecedor: ${supplierName}\nData: ${date}\n`;
-    text += '─────────────────────────────────\n';
+    let text = '';
     let grandTotal = 0;
     for (const [unitName, items] of Object.entries(unitMap)) {
-      if (orders.length > 1) text += `\n📍 ${unitName}\n`;
-      for (const item of items) {
+      const visibleItems = items.filter((item) => {
         const qty = effQty(unitName, item);
-        if (!qty || qty === 0) continue;
+        return qty && qty > 0;
+      });
+      if (visibleItems.length === 0) continue;
+      if (orders.length > 1) text += `📍 ${unitName}\n`;
+      for (const item of visibleItems) {
+        const qty = effQty(unitName, item);
         const price = effUnitPrice(unitName, item);
         const total = qty * price * (item.multiplier || 1);
         grandTotal += total;
@@ -354,16 +356,38 @@ function OrdersView({ quotationId, token, onBack }) {
           }
         }
         text += ` — ${item.name}`;
-        if (item._crossCityFrom) text += ` (levar para ${item._crossCityFrom})`;
+        // Note: cross-city logistics omitted from supplier message (internal only)
         if (altBrandNote) text += ` ⚠ marca alternativa: ${altBrandNote}`;
         text += '\n';
       }
-      const sub = items.reduce((s, i) => s + effTotal(unitName, i), 0);
-      if (sub > 0 && orders.length > 1) text += `  Subtotal ${unitName}: ${fmt(sub)}\n`;
+      const sub = visibleItems.reduce((s, i) => s + effTotal(unitName, i), 0);
+      if (sub > 0 && orders.length > 1) text += `Subtotal ${unitName}: ${fmt(sub)}\n`;
+      text += '\n';
     }
-    text += '─────────────────────────────────\n';
     if (grandTotal > 0) text += `TOTAL: ${fmt(grandTotal)}`;
-    return text;
+    return text.trim();
+  }
+
+  function buildTransferReport() {
+    const entries = Object.entries(crossCityItems);
+    if (!entries.length) return '';
+    const date = new Date().toLocaleDateString('pt-BR');
+    let text = `TRANSFERÊNCIAS INTERNAS – ${date}\n`;
+    // Group by route
+    const routes = {};
+    for (const [productId, ci] of entries) {
+      const key = `${ci.toUnit}→${ci.fromUnit}`;
+      if (!routes[key]) routes[key] = { from: ci.toUnit, to: ci.fromUnit, lines: [] };
+      const srcOrder = orders.find((o) => o.unit_name === ci.fromUnit);
+      const srcItem = srcOrder?.items.find((i) => String(i.product_id) === String(productId));
+      if (!srcItem) continue;
+      const unitLabel = srcItem.price_unit || srcItem.purchase_unit;
+      routes[key].lines.push(`• ${ci.qty} ${srcItem.purchase_unit} — ${srcItem.name} (${ci.supplierName}${unitLabel ? `, R$${fmt(ci.unitPrice)}/${unitLabel}` : ''})`);
+    }
+    for (const { from, to, lines } of Object.values(routes)) {
+      text += `\nDe ${from} → levar para ${to}:\n${lines.join('\n')}\n`;
+    }
+    return text.trim();
   }
 
   function renderSupplierPicker(unitName, item) {
@@ -517,6 +541,34 @@ function OrdersView({ quotationId, token, onBack }) {
       <button onClick={onBack} className="text-sm text-brand-red hover:underline mb-4">← Voltar à cotação</button>
       <h2 className="text-lg font-bold text-brand-red mb-1">Pedidos de Compra</h2>
       <p className="text-xs text-gray-400 mb-5">Ajuste quantidades e fornecedores se necessário, depois clique em "Copiar" para enviar.</p>
+
+      {/* Internal transfer report */}
+      {Object.keys(crossCityItems).length > 0 && (() => {
+        const report = buildTransferReport();
+        return (
+          <div className="mb-5 bg-teal-50 border border-teal-200 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-teal-800">🚗 Transferências internas</p>
+              <button
+                onClick={() => { navigator.clipboard.writeText(report).catch(() => {}); }}
+                className="text-xs border border-teal-400 text-teal-700 px-2 py-0.5 rounded hover:bg-teal-100"
+              >
+                📋 Copiar
+              </button>
+            </div>
+            {Object.entries(crossCityItems).map(([productId, ci]) => {
+              const srcOrder = orders.find((o) => o.unit_name === ci.fromUnit);
+              const srcItem = srcOrder?.items.find((i) => String(i.product_id) === String(productId));
+              if (!srcItem) return null;
+              return (
+                <p key={productId} className="text-xs text-teal-700">
+                  • {ci.qty} {srcItem.purchase_unit} <strong>{srcItem.name}</strong> — comprar em {ci.toUnit} ({ci.supplierName}), levar para {ci.fromUnit}
+                </p>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <div className="space-y-5">
         {Object.entries(supplierMap).map(([supplierName, unitMap]) => {
