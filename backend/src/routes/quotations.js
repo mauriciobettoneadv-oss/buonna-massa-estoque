@@ -24,6 +24,7 @@ const upload = multer({
 router.use(authenticate);
 
 router.get('/', asyncHandler(c.listQuotations));
+router.post('/merge', requireRole('proprietario'), asyncHandler(c.mergeQuotations));
 router.post('/', requireRole('proprietario'), asyncHandler(c.createQuotation));
 router.get('/:id', asyncHandler(c.getQuotation));
 router.get('/:id/orders', asyncHandler(c.getOrders));

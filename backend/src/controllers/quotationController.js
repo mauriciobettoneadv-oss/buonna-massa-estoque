@@ -341,6 +341,53 @@ async function getOrders(req, res) {
   res.json({ quotation: quotation.rows[0], orders, supplier_options: supplierOptions });
 }
 
+async function mergeQuotations(req, res) {
+  const { target_id, source_id } = req.body;
+  if (!target_id || !source_id || target_id === source_id) {
+    return res.status(400).json({ error: 'target_id e source_id distintos são obrigatórios.' });
+  }
+
+  const [tq, sq] = await Promise.all([
+    pool.query(`SELECT status FROM quotations WHERE id = $1`, [target_id]),
+    pool.query(`SELECT status FROM quotations WHERE id = $1`, [source_id]),
+  ]);
+  if (!tq.rows.length || !sq.rows.length) return res.status(404).json({ error: 'Cotação não encontrada.' });
+  if (tq.rows[0].status === 'fechada' || sq.rows[0].status === 'fechada') {
+    return res.status(400).json({ error: 'Não é possível mesclar cotações fechadas.' });
+  }
+
+  // Move stock counts
+  await pool.query(`UPDATE quotation_counts SET quotation_id = $1 WHERE quotation_id = $2`, [target_id, source_id]);
+
+  // Merge suppliers + prices
+  const [srcSuppliers, tgtSuppliers] = await Promise.all([
+    pool.query(`SELECT * FROM quotation_suppliers WHERE quotation_id = $1`, [source_id]),
+    pool.query(`SELECT * FROM quotation_suppliers WHERE quotation_id = $1`, [target_id]),
+  ]);
+
+  for (const ss of srcSuppliers.rows) {
+    const match = tgtSuppliers.rows.find(ts => ts.name.toLowerCase() === ss.name.toLowerCase());
+    if (match) {
+      // Merge prices: source prices → target supplier (don't overwrite existing)
+      await pool.query(`
+        INSERT INTO quotation_prices (supplier_id, product_id, unit_price, notes, alt_brand)
+        SELECT $1, product_id, unit_price, notes, alt_brand FROM quotation_prices WHERE supplier_id = $2
+        ON CONFLICT (supplier_id, product_id) DO NOTHING
+      `, [match.id, ss.id]);
+      await pool.query(`DELETE FROM quotation_prices WHERE supplier_id = $1`, [ss.id]);
+      await pool.query(`DELETE FROM quotation_suppliers WHERE id = $1`, [ss.id]);
+    } else {
+      // Move supplier to target quotation
+      await pool.query(`UPDATE quotation_suppliers SET quotation_id = $1 WHERE id = $2`, [target_id, ss.id]);
+    }
+  }
+
+  // Delete source quotation
+  await pool.query(`DELETE FROM quotations WHERE id = $1`, [source_id]);
+
+  res.json({ ok: true, merged_into: target_id });
+}
+
 async function closeQuotation(req, res) {
   const { id } = req.params;
   const result = await pool.query(
@@ -351,4 +398,4 @@ async function closeQuotation(req, res) {
   res.json(result.rows[0]);
 }
 
-module.exports = { listQuotations, createQuotation, getQuotation, addSupplier, deleteSupplier, savePrices, getOrders, closeQuotation };
+module.exports = { listQuotations, createQuotation, mergeQuotations, getQuotation, addSupplier, deleteSupplier, savePrices, getOrders, closeQuotation };

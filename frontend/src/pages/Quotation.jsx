@@ -31,10 +31,10 @@ function NewQuotationModal({ onClose, onCreated, token }) {
     request('/stock-counts/finalized', { token }).then(setCounts).catch(() => {});
   }, [token]);
 
-  // Group counts by finalization date (day)
+  // Group counts by finalization date (São Paulo timezone)
   const groups = {};
   for (const c of counts) {
-    const date = new Date(c.finalized_at || c.created_at).toLocaleDateString('pt-BR');
+    const date = new Date(c.finalized_at || c.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     if (!groups[date]) groups[date] = [];
     groups[date].push(c);
   }
@@ -1089,10 +1089,34 @@ export default function Quotation() {
   const [copiedRequest, setCopiedRequest] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [closingId, setClosingId] = useState(null);
+  const [mergeSelection, setMergeSelection] = useState([]);
+  const [merging, setMerging] = useState(false);
 
   async function loadList() {
     const list = await request('/quotations', { token });
     setQuotations(list);
+  }
+
+  function toggleMergeSelection(id) {
+    setMergeSelection(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 2 ? [...prev, id] : prev
+    );
+  }
+
+  async function handleMerge() {
+    if (mergeSelection.length !== 2) return;
+    const [a, b] = mergeSelection.sort((x, y) => x - y);
+    if (!window.confirm(`Mesclar Cotação #${b} dentro de Cotação #${a}? A Cotação #${b} será excluída.`)) return;
+    setMerging(true);
+    try {
+      await request('/quotations/merge', { method: 'POST', token, body: { target_id: a, source_id: b } });
+      setMergeSelection([]);
+      await loadList();
+    } catch (e) {
+      alert('Erro ao mesclar: ' + e.message);
+    } finally {
+      setMerging(false);
+    }
   }
 
   async function loadQuotation(id) {
@@ -1275,11 +1299,22 @@ export default function Quotation() {
 
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-brand-red">Cotação de Compras</h1>
-        {isOwner && (
-          <button onClick={() => setShowModal(true)} className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90">
-            + Nova Cotação
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {isOwner && mergeSelection.length === 2 && (
+            <button onClick={handleMerge} disabled={merging}
+              className="bg-amber-500 text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50">
+              {merging ? 'Mesclando...' : `Mesclar #${mergeSelection.sort((a,b)=>a-b).join(' + #')}`}
+            </button>
+          )}
+          {mergeSelection.length > 0 && (
+            <button onClick={() => setMergeSelection([])} className="text-sm text-gray-500 hover:underline">Cancelar</button>
+          )}
+          {isOwner && (
+            <button onClick={() => setShowModal(true)} className="bg-brand-red text-white rounded-lg px-4 py-2 text-sm font-medium hover:opacity-90">
+              + Nova Cotação
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
@@ -1288,18 +1323,32 @@ export default function Quotation() {
       {!selectedId && (
         <div className="bg-white rounded-lg shadow divide-y">
           {quotations.length === 0 && <p className="p-4 text-gray-400 text-sm">Nenhuma cotação encontrada.</p>}
+          {mergeSelection.length === 0 && isOwner && (
+            <p className="p-3 text-xs text-gray-400 border-b">Dica: selecione 2 cotações abertas para mesclá-las.</p>
+          )}
           {quotations.map((q) => {
             const closed = q.status === 'fechada';
+            const isSelected = mergeSelection.includes(q.id);
             return (
-              <button key={q.id} onClick={() => { setSelectedId(q.id); setActiveTab(null); setShowOrders(false); }}
-                className={`w-full text-left flex items-center gap-3 p-3 hover:bg-gray-50 ${closed ? 'opacity-70' : ''}`}>
-                <span className="text-sm font-medium">Cotação #{q.id}</span>
-                <span className="text-xs text-gray-500">{q.units?.join(' + ')}</span>
-                <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('pt-BR')}</span>
-                <span className={`ml-auto text-xs px-2 py-1 rounded-full ${closed ? 'bg-gray-200 text-gray-600' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {closed ? 'fechada' : q.status || 'aberta'}
-                </span>
-              </button>
+              <div key={q.id} className={`flex items-center gap-2 hover:bg-gray-50 ${isSelected ? 'bg-amber-50' : ''} ${closed ? 'opacity-70' : ''}`}>
+                {isOwner && !closed && (
+                  <input type="checkbox" checked={isSelected}
+                    onChange={() => toggleMergeSelection(q.id)}
+                    className="ml-3 accent-amber-500 cursor-pointer"
+                    onClick={e => e.stopPropagation()}
+                  />
+                )}
+                {isOwner && closed && <span className="ml-3 w-4" />}
+                <button className="flex-1 text-left flex items-center gap-3 p-3"
+                  onClick={() => { setSelectedId(q.id); setActiveTab(null); setShowOrders(false); setMergeSelection([]); }}>
+                  <span className="text-sm font-medium">Cotação #{q.id}</span>
+                  <span className="text-xs text-gray-500">{q.units?.join(' + ')}</span>
+                  <span className="text-xs text-gray-400">{new Date(q.created_at).toLocaleDateString('pt-BR')}</span>
+                  <span className={`ml-auto text-xs px-2 py-1 rounded-full ${closed ? 'bg-gray-200 text-gray-600' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {closed ? 'fechada' : q.status || 'aberta'}
+                  </span>
+                </button>
+              </div>
             );
           })}
         </div>
