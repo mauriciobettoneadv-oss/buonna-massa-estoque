@@ -79,7 +79,7 @@ app.get('/api/export', authenticate, requireRole('dono'), asyncHandler(exportDat
 
 app.use((err, req, res, next) => {
   console.error(err);
-  res.status(500).json({ error: 'Erro interno do servidor.' });
+  res.status(500).json({ error: err.message || 'Erro interno do servidor.' });
 });
 
 async function startServer() {
