@@ -163,12 +163,7 @@ export default function SupplierQuotation() {
             >
               <div style={{ fontWeight: '600', fontSize: '0.875rem', color: '#1a1916', marginBottom: '2px' }}>{product.name}</div>
               <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '8px' }}>
-                Unidade: {product.purchase_unit} · Qtd necessária: {product.total_qty} {product.purchase_unit}
-                {product.price_unit && (
-                  <span style={{ marginLeft: '6px', color: '#c0392b', fontWeight: '600' }}>
-                    · Informar preço por {product.price_unit}
-                  </span>
-                )}
+                Qtd necessária: {product.total_qty} {product.purchase_unit} · Informar preço por {product.purchase_unit}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
